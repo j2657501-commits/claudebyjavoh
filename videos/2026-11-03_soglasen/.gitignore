@@ -5,3 +5,4 @@ audio.window.wav
 *.render.json
 voice/sfx.wav
 voice/mix.wav
+chunks/
