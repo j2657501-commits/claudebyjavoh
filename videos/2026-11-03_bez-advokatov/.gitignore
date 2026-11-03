@@ -8,3 +8,5 @@ source-media/real/hd/
 voice/sfx.wav
 voice/mix.wav
 bez-advokatov_v2_voice.mp4
+audio.window.wav
+*.render.json
