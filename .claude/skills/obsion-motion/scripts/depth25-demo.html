@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>DEPTH25 demo</title>
+<style>
+html,body{margin:0;background:#0b1220}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#16243a}
+.paper{position:absolute;background:#e8eef5;border-radius:6px}
+.lbl{position:absolute;font:700 64px/1 'PT Sans',Arial,sans-serif;color:#0e1726;letter-spacing:.02em}
+.red{color:#b34700}
+</style></head>
+<body><div id="stage"></div>
+<script src="vendor/gsap.min.js"></script>
+<script src="depth25.js"></script>
+<script>
+// Night harbour diorama: 7 depth bands, all drawn in CSS (no external art) — proves DOF, haze, contact shadows, motion blur, explode, lens fly-through.
+var DUR = 8, tl = gsap.timeline({ paused: true });
+var D = DEPTH25.stage(document.getElementById("stage"), { persp: 1400, focus: 0, hand: 1, haze: "rgba(40,62,92,1)", hazeRange: 1600 });
+function hills(col, top, amp, seed) { // torn-paper ridge as an SVG path
+  var d = "M0 1080 L0 " + top, x;
+  for (x = 0; x <= 1920; x += 60) d += " L" + x + " " + (top + Math.sin(x * 0.004 + seed) * amp + Math.sin(x * 0.013 + seed * 3) * amp * 0.35 + ((x * 7919 + seed * 31) % 9) - 4).toFixed(1);
+  return '<svg width="1920" height="1080" style="position:absolute;inset:0"><path d="' + d + ' L1920 1080 Z" fill="' + col + '"/></svg>';
+}
+D.layer({ z: -2600, haze: true, shadow: false, html: '<div style="position:absolute;inset:-200px;background:radial-gradient(ellipse at 60% 30%,#3b5b86,#14223a 70%)"></div><div style="position:absolute;left:1240px;top:150px;width:220px;height:220px;border-radius:50%;background:#ffe9b8;opacity:.9"></div>' });
+D.layer({ z: -1700, html: hills("#2a4466", 560, 90, 1) });
+D.layer({ z: -1000, html: hills("#1f3552", 690, 70, 4) + '<div class="paper" style="left:300px;top:470px;width:140px;height:260px;background:#172a44"></div><div class="paper" style="left:470px;top:420px;width:110px;height:310px;background:#13233a"></div><div class="paper" style="left:1500px;top:450px;width:160px;height:280px;background:#172a44"></div>' });
+var mid = D.layer({ z: 0, sharp: true, html:
+  '<div class="paper" style="left:560px;top:250px;width:800px;height:520px;transform:rotate(-2deg);box-shadow:0 2px 0 #b9c6d6"></div>' +
+  '<div class="lbl" style="left:640px;top:330px">ГЛУБИНА <span class="red">2.5D</span></div>' +
+  '<div class="lbl" style="left:640px;top:420px;font-size:38px;font-weight:400;max-width:640px">слои в Z, живая камера, резкость по фокусу, дымка, тени, смаз</div>' +
+  // a folded paper plane (neutral hero object)
+  '<svg style="position:absolute;left:1120px;top:560px" width="220" height="140" viewBox="0 0 220 140"><path d="M4 70 L216 8 L120 132 L96 88 Z" fill="#e8eef5"/><path d="M96 88 L216 8 L110 96 Z" fill="#b9c6d6"/><path d="M96 88 L110 96 L120 132 Z" fill="#8fa3bb"/></svg>' });
+D.layer({ z: 380, html: hills("#0f1c2f", 900, 40, 7) + '<div style="position:absolute;left:120px;top:780px;width:30px;height:200px;background:#0c1626;transform:rotate(-8deg)"></div><div style="position:absolute;left:1700px;top:760px;width:26px;height:240px;background:#0c1626;transform:rotate(6deg)"></div>' });
+D.layer({ z: 760, html: '<div class="paper" style="left:-80px;top:880px;width:520px;height:90px;background:#ff9f43;transform:rotate(9deg)"></div><div class="paper" style="left:1500px;top:40px;width:420px;height:70px;background:#e8eef5;transform:rotate(-12deg)"></div>' });
+// a paper strip that flies through the lens at 6.4 s — a seamless wipe carrier
+var wipe = D.layer({ z: -400, shadow: false, html: '<div class="paper" style="left:-300px;top:330px;width:2520px;height:420px;background:#0e1726;transform:rotate(-6deg)"></div><div class="lbl" style="left:700px;top:500px;color:#e8eef5;transform:rotate(-6deg)">СЛЕДУЮЩАЯ СЦЕНА</div>' });
+gsap.set(wipe.c, { opacity: 0 }); tl.set(wipe.c, { opacity: 1 }, 5.6);
+wipe.move(5.6, 1.6, { z: 1250 }, "power2.in");
+// camera: one continuous path; explode (sep) between 3 and 4.6 s; refocus to the far hills and back
+D.cam(0, { x: -260, y: 40, z: -150, ry: 7, rx: -2, focus: 0 });
+D.cam(1.8, { x: 0, y: 0, z: 120, ry: -3, rx: 1 });
+D.cam(3.0, { x: 120, y: -30, z: 220, ry: -9, sep: 1 });
+D.cam(4.4, { x: 60, y: -10, z: 200, ry: -14, rx: 3, sep: 1.9, focus: -1000 });
+D.cam(5.6, { x: 0, y: 0, z: 260, ry: 0, rx: 0, sep: 1, focus: 0 });
+D.cam(8.0, { x: 30, y: 10, z: 420, ry: 3 });
+DEPTH25.attach(tl, DUR);
+window.__timelines = { main: tl };
+window.__duration = DUR;
+window.__seek = function (t) { tl.seek(t, false); return 0; };
+var q = /[?&]t=([\d.]+)/.exec(location.search); tl.seek(q ? +q[1] : 0);
+if (!q) tl.play();
+</script></body></html>
