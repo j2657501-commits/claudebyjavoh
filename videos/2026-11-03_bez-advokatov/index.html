@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Без адвокатов</title>
+<link rel="stylesheet" href="fonts/g.css">
+<style>
+:root{--ink:#221e1a;--clay:#a93a24;--paper:#f6f0e4;--hl:#ffd83a;--void:#2b231d}
+html,body{margin:0;background:#111;overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#d8c9ab url(art/wall.jpg);background-size:1024px}
+#cam{position:absolute;inset:0;transform-origin:960px 540px}
+#world,#near{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+.abs{position:absolute;left:0;top:0}
+.sh{filter:drop-shadow(0 10px 12px rgba(50,30,10,.32)) drop-shadow(0 2px 2px rgba(50,30,10,.25))}
+.pp{background:var(--paper) url(art/paper.jpg);background-size:768px}
+.serif{font-family:'PT Serif',serif;font-weight:700;color:var(--ink)}
+.sans{font-family:'Golos Text',sans-serif;color:var(--ink)}
+.hand{font-family:'Caveat',cursive;font-weight:600;color:var(--ink)}
+.mk{position:absolute;background:var(--hl);mix-blend-mode:multiply;transform-origin:0 50%;transform:scaleX(0);border-radius:3px}
+.pin{position:absolute;width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff8a7a,#b3261e 55%,#6d130e);box-shadow:3px 6px 6px rgba(0,0,0,.35)}
+.tag{position:absolute;font:600 30px 'Golos Text',sans-serif;color:#5b4f42;white-space:nowrap}
+#hud{position:absolute;inset:0;pointer-events:none}
+.cap{position:absolute;left:96px;bottom:84px;max-width:1560px;opacity:0}
+.cap .in{padding:22px 40px 26px;font:700 58px/1.18 'Golos Text',sans-serif;color:var(--ink)}
+.cap .w{display:inline-block;white-space:pre}
+.cap .k{color:var(--clay)}
+#cover{position:absolute;left:0;top:0;width:1100px;height:760px;opacity:0;transform-origin:50% 50%}
+</style></head>
+<body><div id="stage"><div id="cam"><div id="world"></div><div id="near"></div></div><div id="hud"></div><div id="cover"></div></div>
+<script src="sfx.js"></script><script src="camlife.js"></script>
+<script>
+"use strict";
+// ================= helpers (everything is a pure function of t) =================
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)), P=(t,a,b)=>cl((t-a)/(b-a));
+const eo=p=>1-Math.pow(1-cl(p),4), eio=p=>{p=cl(p);return p*p*(3-2*p)}, ei=p=>cl(p)*cl(p);
+const back=(p,s=1.9)=>{p=cl(p)-1;return 1+p*p*((s+1)*p+s)};
+const spr=(dt,amp,f=3.2,z=0.42)=>dt<0||dt>2?0:amp*Math.exp(-z*f*6.283*dt)*Math.sin(f*6.283*Math.sqrt(1-z*z)*dt)*1.6;
+const rnd=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const W=document.getElementById('world'), N=document.getElementById('near'), HUD=document.getElementById('hud');
+function el(tag,cls,css,parent,html){const e=document.createElement(tag);if(cls)e.className=cls;if(css)e.style.cssText=css;if(html!=null)e.innerHTML=html;(parent||W).appendChild(e);return e}
+function jag(w,h,seed,amp=5,step=22){const r=rnd(seed),pts=[];const j=()=> (r()-.5)*2*amp;
+  for(let x=0;x<w;x+=step)pts.push([x,cl(j()+amp*0.4,0,amp*2)]);
+  for(let y=0;y<h;y+=step)pts.push([w-cl(j()+amp*0.4,0,amp*2),y]);
+  for(let x=w;x>0;x-=step)pts.push([x,h-cl(j()+amp*0.4,0,amp*2)]);
+  for(let y=h;y>0;y-=step)pts.push([cl(j()+amp*0.4,0,amp*2),y]);
+  return 'polygon('+pts.map(p=>p[0].toFixed(1)+'px '+p[1].toFixed(1)+'px').join(',')+')'}
+const tf=(e,x,y,r=0,sx=1,sy)=>{e.style.transform=`translate(${x.toFixed(2)}px,${y.toFixed(2)}px) rotate(${r.toFixed(3)}deg) scale(${sx.toFixed(4)},${(sy==null?sx:sy).toFixed(4)})`};
+const EV=[]; const ev=(t,n,o)=>EV.push([t,n,o||{}]);
+const UPD=[]; // render callbacks
+const SVGNS='http://www.w3.org/2000/svg';
+// figure silhouettes, viewBox 0 0 60 120 (feet at y=118)
+const HEAD=' M16 13 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 Z';
+const FIG={
+ law:'M14 27 Q26 22 38 27 L41 44 L47 60 L44 62 L39 50 L39 72 L35 118 L28 118 L26 80 L24 118 L17 118 L13 72 L13 50 L9 64 L6 62 L11 44 Z'+HEAD+' M41 61 h16 v14 h-16 Z M45 61 v-4 h8 v4 h-2 v-2 h-4 v2 Z',
+ you:'M14 27 Q26 22 38 27 L42 44 L45 66 L41 67 L39 50 L39 72 L35 118 L28 118 L26 80 L24 118 L17 118 L13 72 L13 50 L11 67 L7 66 L10 44 Z'+HEAD,
+ judge:'M13 27 Q26 21 39 27 L48 118 L4 118 Z'+HEAD,
+ suit:'M11 27 Q26 20 41 27 L45 52 L40 72 L37 118 L29 118 L26 82 L23 118 L15 118 L12 72 L7 52 Z'+HEAD,
+};
+function svgFig(kind,h,fill,parent,opt={}){ // returns wrapper div; feet at wrapper's bottom-centre
+  const s=h/120,w=60*s,d=el('div','abs',`width:${w}px;height:${h}px;transform-origin:50% 100%`,parent);
+  d.innerHTML=`<svg width="${w}" height="${h}" viewBox="0 0 60 120" style="overflow:visible;display:block">${opt.defs||''}<path d="${FIG[kind]}" fill="${fill}" ${opt.attr||''}/></svg>`;
+  d._w=w;d._h=h;return d}
+// rough-edge filter + void gradient (shared)
+const DEFS=el('div','abs','width:0;height:0',document.body);
+DEFS.innerHTML=`<svg width="0" height="0"><defs>
+<filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.6"/></filter>
+<linearGradient id="voidg" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#5a4a3a"/><stop offset="1" stop-color="#8f7d63"/></linearGradient>
+<filter id="holefx" x="-15%" y="-15%" width="130%" height="130%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" result="d"/>
+<feOffset in="d" dx="1.6" dy="2.6" result="o"/><feComposite in="d" in2="o" operator="out" result="inv"/><feGaussianBlur in="inv" stdDeviation="1.3" result="b"/><feFlood flood-color="#120c06" flood-opacity=".85"/><feComposite in2="b" operator="in" result="sh"/>
+<feComposite in="sh" in2="d" operator="in" result="sh2"/><feMerge><feMergeNode in="d"/><feMergeNode in="sh2"/></feMerge></filter></defs></svg>`;
+function holeFig(h,parent){return svgFig('law',h,'url(#voidg)',parent,{attr:'stroke="#fffaf0" stroke-width="1.1" stroke-linejoin="round" filter="url(#holefx)"'})}
+
+// paper card
+function card(x,y,w,h,rot,seed,parent,cls){const wrap=el('div','abs sh',`width:${w}px;height:${h}px`,parent);const inn=el('div','abs pp '+(cls||''),`width:${w}px;height:${h}px;clip-path:${jag(w,h,seed)}`,wrap);wrap._x=x;wrap._y=y;wrap._r=rot;tf(wrap,x,y,rot);wrap.inn=inn;return wrap}
+// evidence clipping from a real screenshot, with marker rects
+const CR=JSON.parse(`{"fpa2025": {"w": 700, "h": 360, "hl": [[551.6, 246, 130.9, 16]], "also": [[32, 40, 631.3, 40]]}, "shakespeare": {"w": 800, "h": 420, "hl": [[163, 223, 205, 21], [24, 245, 132, 21]], "cade": [[135, 272, 72, 20]], "dick": [[24, 300, 117, 18]]}, "konst48": {"w": 760, "h": 280, "hl": [[453.9, 206.5, 182.5, 19]], "also": [[27.5, 94.5, 264.3, 19]]}, "upk51": {"w": 750, "h": 215, "hl": [[28.5, 182.5, 522.8, 19]], "also": [[23.4, 78.5, 539, 19]]}, "dekret1917": {"w": 700, "h": 190, "hl": [[430, 50, 250, 36], [22, 88, 200, 36]], "also": [[342.5, 148, 313.5, 24]]}}`);
+function clip(name,x,y,dispW,rot,seed,src){
+  const c=CR[name],s=dispW/c.w,p=16,w=dispW+2*p,h=c.h*s+2*p;
+  const wrap=el('div','abs sh',`width:${w}px;height:${h}px`);
+  const inn=el('div','abs',`width:${w}px;height:${h}px;background:#fff;clip-path:${jag(w,h,seed,4,26)}`,wrap);
+  el('img','abs',`left:${p}px;top:${p}px;width:${dispW}px;height:${c.h*s}px`,inn).src='art/'+name+'.jpg';
+  const mk={};for(const k in c){if(!Array.isArray(c[k]))continue;mk[k]=c[k].map(b=>el('div','mk',`left:${p+b[0]*s-4}px;top:${p+b[1]*s-2}px;width:${b[2]*s+8}px;height:${b[3]*s+4}px`,inn))}
+  el('div','pin',`left:${w/2-15}px;top:-12px`,wrap);
+  const tg=el('div','tag',`left:${p}px;top:${h+10}px`,wrap,src);
+  const o={wrap,inn,s,p,w,h,mk,x,y,rot,c,
+    at:(k,i=0)=>{const b=c[k][i];return [x+p+(b[0]+b[2]/2)*s, y+p+(b[1]+b[3]/2)*s]},
+    rect:(k,i=0)=>{const b=c[k][i];return [p+b[0]*s,p+b[1]*s,b[2]*s,b[3]*s]}};
+  tf(wrap,x,y,rot);return o}
+const mark=(o,k,t,t0,dur=0.5)=>o.mk[k].forEach((m,i)=>{const n=o.mk[k].length,a=t0+i*dur/n;m.style.transform=`scaleX(${eio(P(t,a,a+dur/n)).toFixed(3)})`});
+
+// ================= CAPTIONS (screen space, paper strip) =================
+const CAPS=[];
+function caption(t0,t1,text){const wrap=el('div','cap sh','',HUD);const inn=el('div','in pp','',wrap);
+  let on=false;const words=text.split(' ').map(wd=>{const st=wd.startsWith('*');if(st)on=true;const k=on;if(wd.includes('*')&&(!st||wd.indexOf('*',1)>0))on=false;return el('span','w'+(k?' k':''),'',inn,wd.replace(/\*/g,'')+' ')});
+  CAPS.push({t0,t1,wrap,inn,words});}
+UPD.push(t=>{for(const c of CAPS){const on=t>=c.t0-0.05&&t<c.t1+0.35;c.wrap.style.display=on?'block':'none';if(!on)continue;
+  if(!c.clip){c.inn.style.clipPath=jag(c.inn.offsetWidth,c.inn.offsetHeight,7+CAPS.indexOf(c),4,24);c.clip=1}
+  const pin=eo(P(t,c.t0,c.t0+0.35)),pout=ei(P(t,c.t1,c.t1+0.3));
+  c.wrap.style.opacity=(pin*(1-pout)).toFixed(3);tf(c.wrap,(1-pin)*-60,pout*60,-0.6+(1-pin)*-2.5);
+  c.words.forEach((w,i)=>{const p=eo(P(t,c.t0+0.08+i*0.06,c.t0+0.38+i*0.06));w.style.transform=`translateY(${((1-p)*26).toFixed(1)}px)`;w.style.opacity=p.toFixed(3)})}});
+
+// ================= CAMERA =================
+const CAMK=[];const key=(t,x,y,z)=>CAMK.push([t,x,y,z]);
+const ACC=[];const acc=(t,a)=>ACC.push([t,a]);
+function camAt(t){const K=CAMK;if(t<=K[0][0])return K[0].slice(1);
+  for(let i=0;i<K.length-1;i++){const a=K[i],b=K[i+1];if(t<=b[0]){const p=eio((t-a[0])/(b[0]-a[0]||1));return [a[1]+(b[1]-a[1])*p,a[2]+(b[2]-a[2])*p,a[3]*Math.pow(b[3]/a[3],p)]}}
+  return K[K.length-1].slice(1)}
+const drift=(t,ph,f)=>Math.sin(t*f*6.283+ph)+0.5*Math.sin(t*f*1.83*6.283+ph*1.7);
+const CAMEL=document.getElementById('cam');
+UPD.push(t=>{let [cx,cy,z]=camAt(t);for(const a of ACC)z*=1+spr(t-a[0],a[1]);
+  const dx=5*drift(t,0.3,0.061),dy=3.5*drift(t,1.9,0.083),rot=0.28*drift(t,4.1,0.047);
+  W.style.transform=`translate(${(960-cx*z+dx).toFixed(2)}px,${(540-cy*z+dy).toFixed(2)}px) scale(${z.toFixed(5)})`;
+  const k=1.45;N.style.transform=`translate(${(960-cx*z*k+dx*1.5).toFixed(2)}px,${(540-cy*z*k+dy*1.5).toFixed(2)}px) scale(${(z*1.15).toFixed(5)})`;
+  CAMEL.style.transform=`rotate(${rot.toFixed(3)}deg)`;window.__cam=[cx,cy,z]});
+const toScreen=(x,y,t)=>{const [cx,cy,z]=camAt(t);return [960+(x-cx)*z,540+(y-cy)*z,z]};
+
+// ================= RED THREAD =================
+const TH=document.createElementNS(SVGNS,'svg');TH.setAttribute('width',5200);TH.setAttribute('height',3200);TH.style.cssText='position:absolute;left:-1400px;top:-900px;overflow:visible;z-index:50;pointer-events:none';
+const THREADS=[];
+function thread(a,b,t0,t1,sag=1){const p=document.createElementNS(SVGNS,'path');const ax=a[0]+1400,ay=a[1]+900,bx=b[0]+1400,by=b[1]+900,L=Math.hypot(bx-ax,by-ay);
+  p.setAttribute('d',`M${ax} ${ay} Q${(ax+bx)/2} ${(ay+by)/2+(80+L*0.07)*sag} ${bx} ${by}`);p.setAttribute('fill','none');p.setAttribute('stroke','#b3261e');p.setAttribute('stroke-width','4.5');p.setAttribute('stroke-linecap','round');
+  p.style.filter='drop-shadow(2px 5px 3px rgba(0,0,0,.3))';TH.appendChild(p);THREADS.push({p,t0,t1})}
+UPD.push(t=>{for(const h of THREADS){if(!h.L){h.L=h.p.getTotalLength();h.p.style.strokeDasharray=h.L}h.p.style.strokeDashoffset=(h.L*(1-eio(P(t,h.t0,h.t1)))).toFixed(1)}});
+
+// =====================================================================
+// S1 — 0…6.8  758 фигурок = 75 813 адвокатов; их выдёргивают из листа
+// =====================================================================
+const rapsi=clip('fpa2025',300,-480,980,1.6,11,'РАПСИ · 18.04.2025 · данные ФПА');
+const num=el('div','abs serif','font-size:190px;line-height:1;white-space:nowrap;letter-spacing:-2px');tf(num,-900,-520);
+const numL=el('div','abs sans','font-size:54px;font-weight:700;white-space:nowrap',W,'адвокатов в России');tf(numL,-896,-300);
+const FX=-900,FY=-210,COLS=40,ROWS=19,CW=28,CH=30,NF=758;
+const fieldSheet=card(FX-36,FY-30,COLS*CW+72,ROWS*CH+60,-0.6,17,W);
+const fieldBox=el('div','abs',`width:${COLS*CW}px;height:${ROWS*CH}px`);tf(fieldBox,FX,FY);
+fieldBox.innerHTML=`<svg width="${COLS*CW}" height="${ROWS*CH}" style="overflow:visible"><defs><path id="lw" d="${FIG.law}"/></defs><g id="holes" filter="url(#holefx)"></g><g id="figs"></g></svg>`;
+const gH=fieldBox.querySelector('#holes'),gF=fieldBox.querySelector('#figs');const FIGS=[];{const r=rnd(5);
+for(let i=0;i<NF;i++){const c=i%COLS,rw=Math.floor(i/COLS),x=c*CW+CW/2-6.6+(r()-.5)*3,y=rw*CH+2+(r()-.5)*2,sc=0.22;
+  const hu=document.createElementNS(SVGNS,'use');hu.setAttribute('href','#lw');hu.setAttribute('fill','#7c6a52');hu.setAttribute('stroke','#fffaf0');hu.setAttribute('stroke-width','3');hu.setAttribute('transform',`translate(${x},${y}) scale(${sc})`);gH.appendChild(hu);
+  const fu=document.createElementNS(SVGNS,'use');fu.setAttribute('href','#lw');fu.setAttribute('fill','#2a2521');gF.appendChild(fu);
+  const u=(1-c/(COLS-1))*0.72+r()*0.28, ti=1.0+3.4*Math.pow(u,0.62);FIGS.push({fu,x,y,sc,ti,dir:r()<.5?-1:1,spin:20+r()*30})}}
+const popsSorted=FIGS.map(f=>f.ti).sort((a,b)=>a-b);
+popsSorted.slice(0,16).forEach((ti,i)=>ev(ti+0.02,'pop',{gain:0.45,k:0.9+i*0.03}));
+ev(1.7,'paper',{dur:2.8,gain:0.55});ev(2.0,'riser',{dur:2.5,gain:0.35});ev(popsSorted[NF-1]+0.05,'impact',{size:0.8,gain:0.8});
+UPD.push(t=>{let left=0;for(const f of FIGS){const dt=t-f.ti;if(dt<0){left++;f.fu.setAttribute('transform',`translate(${f.x},${f.y}) scale(${f.sc})`);f.fu.style.opacity=1;continue}
+  const p=cl(dt/0.55),lift=-14*eo(cl(dt/0.12))-260*ei(p),sx=1+0.35*eo(cl(dt/0.12)),rot=f.dir*f.spin*p;
+  f.fu.setAttribute('transform',`translate(${f.x+f.dir*30*p},${f.y+lift}) rotate(${rot} 6.6 13) scale(${f.sc*sx})`);f.fu.style.opacity=(1-ei(cl((dt-0.25)/0.3))).toFixed(3)}
+  num.textContent=Math.round(75813*left/NF).toLocaleString('ru-RU').replace(/ |,/g,' ');
+  const nk=spr(t-popsSorted[NF-1],0.06);tf(num,-900,-520,0,1+nk)});
+const legend=el('div','abs hand','font-size:72px;white-space:nowrap',W,'1 фигурка = 100 адвокатов');tf(legend,-900,382,-1.5);
+UPD.push(t=>{const p=eo(P(t,1.2,1.8));legend.style.clipPath=`inset(0 ${(100-p*100).toFixed(1)}% 0 0)`;
+  mark(rapsi,'hl',t,0.15,0.55)});
+ev(0.15,'paper',{dur:0.5,gain:0.35});
+// title banner over the emptied field
+const ban=card(-840,-30,1380,300,-1.2,21,W);ban.inn.innerHTML='<div class="serif" style="font-size:100px;line-height:1.12;padding:30px 50px">Что будет, если все<br>адвокаты <span style="color:var(--clay)">исчезнут?</span></div>';
+UPD.push(t=>{const p=back(P(t,4.6,5.05),1.6),o=P(t,4.6,4.7);ban.style.opacity=o;tf(ban,-840,-30-(1-p)*120,-1.2+(1-p)*-5,0.92+0.08*p)});
+ev(4.6,'whoosh',{dur:0.45,gain:0.5});ev(5.0,'thud',{gain:0.8});acc(5.02,0.025);
+key(0,1000,-160,1.32);key(0.9,960,-150,1.3);key(2.7,60,-40,0.8);key(4.5,-120,0,0.9);key(6.6,-150,20,0.97);
+
+// =====================================================================
+// S2 — 6.8…13.6  Шекспир: «убьём всех юристов», имя под стикером (семя)
+// =====================================================================
+thread([790,-490],[1680,-468],6.7,7.6);ev(6.75,'whoosh',{dur:0.85,gain:0.6,pan:[-0.6,0.6]});
+const qc=card(1290,-470,830,470,-2,31,W);qc.inn.innerHTML=`<div style="padding:34px 46px"><div class="serif ql" style="font-size:76px;line-height:1.1;white-space:nowrap">«Первым делом —</div><div class="serif ql" style="font-size:80px;line-height:1.1">убьём всех</div><div class="serif ql" style="font-size:80px;line-height:1.1;color:var(--clay)">юристов»</div><div class="sans ql" style="font-size:36px;font-weight:600;margin-top:22px;color:#5b4f42">Шекспир · «Генрих VI», ч. 2 · 1591</div></div>`;
+el('div','pin','left:400px;top:-10px',qc);
+const QL=[...qc.querySelectorAll('.ql')];
+UPD.push(t=>{QL.forEach((l,i)=>{const p=eio(P(t,7.7+i*0.42,8.15+i*0.42));l.style.clipPath=`inset(-10px ${(100-p*100).toFixed(1)}% -20px -10px)`})});
+ev(7.7,'paper',{dur:1.4,gain:0.4});
+const wiki=clip('shakespeare',2170,-330,1120,1.2,41,'Wikipedia · «Let’s kill all the lawyers»');
+const st=el('div','abs sh','width:640px;height:120px;transform-origin:0 0',W);const sti=el('div','abs hand',`width:640px;height:120px;background:#ffe066;font-size:58px;line-height:1;white-space:nowrap;display:flex;align-items:center;justify-content:center;clip-path:${jag(640,120,51,3,20)}`,st,'кто это сказал? → в конце');
+const ST0=[wiki.x+wiki.p+4,wiki.y+wiki.p+269*wiki.s];
+UPD.push(t=>{mark(wiki,'hl',t,10.7,0.7);const wob=spr(t-12.0,6,2.2),pe=ei(P(t,41.8,42.5)),pin=eo(P(t,9.9,10.3));
+  st.style.opacity=pin;tf(st,ST0[0]+pe*500,ST0[1]-pe*620-(1-pin)*40,-3+wob+pe*38,1+0.03*(1-pin));
+  mark(wiki,'cade',t,42.3,0.35);mark(wiki,'dick',t,42.65,0.35)});
+ev(9.95,'fold',{gain:0.5});ev(10.7,'paper',{dur:0.5,gain:0.35});ev(12.0,'paper',{dur:0.3,gain:0.4});
+key(7.6,1690,-240,1.02);key(9.4,1720,-230,1.08);key(10.9,2620,-60,1.0);key(13.3,2640,-40,1.06);
+caption(9.0,13.4,'Строчке больше *400 лет.* Её до сих пор цитируют как шутку.');
+
+// =====================================================================
+// S3 — 13.6…29.5  ты против троих; ст.48 вырезают; ст.51; дела копятся
+// =====================================================================
+thread([1680,-468],[1705,812],13.5,14.4);ev(13.55,'whoosh',{dur:0.85,gain:0.6});
+const G=1660;
+const dio=card(1290,800,1820,1000,0.4,61,W);
+el('div','abs',`left:0;top:${G-800}px;width:1820px;height:200px;background:#d7c39c url(art/paper.jpg);background-blend-mode:multiply;background-size:768px`,dio.inn);
+el('div','pin','left:400px;top:-8px',dio);
+const you=svgFig('you',250,'#b8492f',W);const YX=1520;
+const youL=el('div','abs serif','font-size:62px;white-space:nowrap;color:var(--clay)',W,'ты');
+const hole=holeFig(300,W);const HX=1700;tf(hole,HX,G-300);
+const holeL=el('div','abs hand','font-size:56px;white-space:nowrap;color:#3d342c',W,'здесь был адвокат ↓');
+const OFF=[['suit',430,2230,'следователь',14.6],['suit',450,2480,'прокурор',14.9],['judge',470,2720,'суд',15.2]].map(([k,h,x,lab,td],i)=>{
+  const sh=el('div','abs',`width:${h*0.55}px;height:34px;border-radius:50%;background:radial-gradient(rgba(30,20,10,.45),rgba(30,20,10,0) 70%)`);
+  const f=svgFig(k,h,'#26221e',W);const L=el('div','abs hand','font-size:54px;white-space:nowrap',W,lab);
+  ev(td+0.32,'thud',{gain:0.9,size:0.9+i*0.15});acc(td+0.33,0.018);return {f,L,sh,h,x,td}});
+// judge's desk; folders (cases) pile up on it
+const DESK=G-170;const desk=el('div','abs sh','width:320px;height:170px');el('div','abs',`width:320px;height:170px;background:#6b4a2f url(art/paper.jpg);background-blend-mode:multiply;border-top:14px solid #4e341f;box-sizing:border-box;clip-path:${jag(320,170,66,3,20)}`,desk);
+tf(desk,2690,DESK);const FOLD=[];for(let i=0;i<8;i++){const f=el('div','abs sh','width:250px;height:46px;transform-origin:50% 100%');const fi=el('div','abs sans',`width:250px;height:46px;background:#e9c98f;border-top:6px solid #cfa25d;box-sizing:border-box;font-size:30px;font-weight:800;color:#6b4a1d;text-align:center;line-height:36px;clip-path:${jag(250,46,70+i,2,18)}`,f,'ДЕЛО');
+  const td=26.0+i*0.3;FOLD.push({f,td,i});ev(td+0.28,'thud',{gain:0.5,size:0.55});ev(td+0.3,'paper',{dur:0.15,gain:0.3})}
+UPD.push(t=>{
+  // officials drop in, squash, then react
+  let flinch=0;OFF.forEach((o,i)=>{const dt=t-o.td,fall=cl(dt/0.33),land=dt-0.33;
+    const y=dt<0?-1400:(-1100*(1-fall*fall));const sq=land>0?1-spr(land,0.09,2.6):1;
+    const lean=spr(t-27.0-i*0.05,-2.5,1.4)+spr(t-48.08-i*0.04,-4,1.6)+ (t>48.3?-1.2*eio(P(t,48.3,49.3)):0);
+    o.f.style.display=dt<0?'none':'block';tf(o.f,o.x,G-o.h+y,lean,1/Math.sqrt(sq),sq);
+    o.sh.style.opacity=cl(fall*fall)*0.9;tf(o.sh,o.x+o.f._w/2-o.h*0.275,G-17,0,0.5+0.5*fall*fall);
+    o.L.style.opacity=eo(P(t,o.td+0.5,o.td+0.8));tf(o.L,o.x+o.f._w/2-o.L.offsetWidth/2,G-o.h-86+(1-eo(P(t,o.td+0.5,o.td+0.8)))*20,-2);
+    if(land>0)flinch+=spr(land-0.05,1,2.4)});
+  // ты: breathes, flinches at each landing, looks at the hole, straightens in the finale
+  const br=1+0.012*Math.sin(t*1.6),fin=eo(P(t,48.08,48.5)),hop=spr(t-48.1,-0.07,2.4);
+  tf(you,YX,G-250,-2.2*flinch*(1-fin)+(1-fin)*-3*eio(P(t,16.6,17.2))+fin*0.5,br,br*(1-0.03*flinch+hop)*(1-0.04*(1-fin)*eio(P(t,15.6,16.2))));
+  tf(youL,YX+you._w/2-youL.offsetWidth/2,G-250-96,-3);
+  holeL.style.opacity=eo(P(t,16.6,17.0))*(1-P(t,47.6,47.8));tf(holeL,HX-80,G-300-86-(1-eo(P(t,16.6,17.0)))*16,-2);
+  // folders
+  FOLD.forEach(o=>{const dt=t-o.td;o.f.style.display=dt<0?'none':'block';if(dt<0)return;const fall=cl(dt/0.3),yb=DESK-46*(o.i+1);
+    const sway=spr(t-(FOLD[FOLD.length-1].td+0.3),2.2,1.1)*o.i/7+FOLD.reduce((s,q)=>s+(q.i>o.i?0:0),0);
+    let y=yb-900*(1-fall*fall),x=2715+(o.i%2?6:-5)+sway*o.i*3;const lift=o.i===7?P(t,29.05,29.25):0;
+    o.f.style.opacity=1-lift;tf(o.f,x,y-lift*120,(o.i%3-1)*1.5+sway,1)});
+});
+key(14.4,2180,1380,1.04);key(16.4,2140,1400,1.08);key(18.5,2110,1400,1.1);
+caption(15.4,18.5,'Тебя задержали. Против тебя — *трое.* Рядом — пусто.');
+ev(16.6,'pop',{gain:0.35,k:0.8});
+
+// Конституция ст.48 — слово «адвоката» вырезают из строки (фирменный момент)
+const kon=clip('konst48',1420,830,1400,-1.2,81,'Конституция РФ, ст. 48 · legalacts.ru');
+const KR=kon.rect('hl');const kHole=el('div','abs',`left:${KR[0]-8}px;top:${KR[1]-6}px;width:${KR[2]+16}px;height:${KR[3]+12}px;background:linear-gradient(#2e251d,#6f5d47);clip-path:${jag(KR[2]+16,KR[3]+12,91,3,10)};opacity:0`,kon.inn);
+const kPiece=el('div','abs',`width:${KR[2]+16}px;height:${KR[3]+12}px;background:url(art/konst48.jpg) ${-(KR[0]-8-kon.p)}px ${-(KR[1]-6-kon.p)}px/${kon.c.w*kon.s}px ${kon.c.h*kon.s}px;clip-path:${jag(KR[2]+16,KR[3]+12,91,3,10)};opacity:0;transform-origin:50% 50%`,kon.wrap);
+el('div','abs',`inset:0;background:var(--hl);mix-blend-mode:multiply`,kPiece);
+UPD.push(t=>{const pin=eo(P(t,18.6,19.25)),pout=ei(P(t,24.0,24.5));kon.wrap.style.display=(t>18.55&&t<24.6)?'block':'none';
+  tf(kon.wrap,kon.x,kon.y+(1-pin)*900+pout*1100,kon.rot+(1-pin)*4);mark(kon,'hl',t,19.7,0.5);
+  const cut=t>=22.0,dt=t-22.0;kHole.style.opacity=cut?1:0;kPiece.style.opacity=cut?1:0;
+  if(cut){const pop=eo(cl(dt/0.15));tf(kPiece,KR[0]-8+dt*90,KR[1]-6-pop*26+0.5*2400*Math.max(0,dt-0.15)**2,dt*48,1+0.15*pop)}});
+ev(18.6,'swish',{gain:0.5});ev(19.7,'paper',{dur:0.45,gain:0.4});ev(22.0,'tear',{dur:0.45,gain:0.9});ev(22.05,'pop',{gain:0.5,k:0.7});acc(22.02,0.03);
+const [kx,ky]=kon.at('hl');key(19.0,2080,1200,1.15);key(20.1,kx-40,ky+20,1.95);key(22.0,kx-20,ky+40,2.05);key(23.4,kx+40,ky+220,1.75);
+caption(19.3,22.3,'Конституция: право на *адвоката* — с момента задержания.');
+caption(22.55,24.3,'Право есть. *Адвоката* — нет.');
+
+// УПК ст.51
+const upk=clip('upk51',1420,840,1400,0.9,101,'УПК РФ, ст. 51 · legalacts.ru');
+UPD.push(t=>{const pin=eo(P(t,24.2,24.8));upk.wrap.style.display=t>24.15&&t<29.6?'block':'none';tf(upk.wrap,upk.x,upk.y+(1-pin)*900,upk.rot-(1-pin)*3);mark(upk,'hl',t,25.0,0.6)});
+ev(24.2,'swish',{gain:0.5});ev(25.0,'paper',{dur:0.55,gain:0.4});
+const [ux,uy]=upk.at('hl');key(24.5,ux,uy+60,1.35);key(25.9,ux+40,uy+80,1.42);key(27.0,2350,1350,0.98);key(29.0,2640,1340,1.08);
+caption(24.75,29.0,'УПК: подростку защитник *обязателен.* Без него суд не может вести дело.');
+
+// переход: верхняя папка летит в объектив → 1917
+const cov=document.getElementById('cover');cov.className='sh';const covi=el('div','abs sans',`width:1100px;height:760px;background:#e9c98f url(art/paper.jpg);background-blend-mode:multiply;border-top:40px solid #cfa25d;box-sizing:border-box;font-size:150px;font-weight:800;color:#6b4a1d;display:flex;align-items:center;justify-content:center;clip-path:${jag(1100,760,111,6,30)}`,cov,'ДЕЛО');
+UPD.push(t=>{const a=P(t,29.05,29.5),b=P(t,29.5,29.95);cov.style.display=(t>29.05&&t<29.95)?'block':'none';if(t<=29.05||t>=29.95)return;
+  if(t<29.5){const [sx,sy,z]=toScreen(2840,DESK-46*8,29.05),p=ei(a),s=0.25*z+(3.2-0.25*z)*p;cov.style.opacity=1;tf(cov,sx-550+(960-sx)*p,sy-380+(540-sy)*p,-6+8*p,s)}
+  else{const p=eio(b);tf(cov,960-550-p*2600,540-380-p*300,2-14*p,3.2-p*0.6)}});
+ev(29.05,'whoosh',{dur:0.5,gain:0.7,size:1.3});ev(29.5,'swish',{dur:0.4,gain:0.6});
+key(29.5,2700,1320,1.1);key(29.5001,-170,1290,1.0);
+
+// =====================================================================
+// S4 — 29.5…39.6  1917: Декрет о суде № 1; 1922 — заплатка; мем
+// =====================================================================
+thread([1705,812],[476,848],29.6,30.4,-1.6);
+const pg=card(-900,820,820,900,-1.5,121,W);pg.inn.style.background='#e8d8b2 url(art/paper.jpg)';pg.inn.style.backgroundBlendMode='multiply';
+pg.inn.innerHTML+=`<div class="serif" style="position:absolute;left:56px;top:30px;font-size:240px;line-height:1">1917</div><div class="serif" style="position:absolute;left:62px;top:300px;font-size:62px">Декрет о суде № 1</div>`+
+  Array.from({length:9},(_,i)=>`<div style="position:absolute;left:62px;top:${420+i*48}px;width:${300+((i*137)%220)}px;height:12px;border-radius:6px;background:rgba(60,45,30,.18)"></div>`).join('');
+el('div','pin','left:395px;top:-8px',pg);
+const PH=[420,400,420];// page-local hole x,y,h
+const pHole=holeFig(PH[2],pg.inn);tf(pHole,PH[0],PH[1]);
+const pPiece=svgFig('law',PH[2],'#e3d2aa',pg,{attr:'stroke="#cdb88f" stroke-width="0.8"'});
+const patch=el('div','abs sh','width:300px;height:500px;transform-origin:50% 40%',pg);el('div','abs pp hand',`width:300px;height:500px;font-size:120px;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);clip-path:${jag(300,500,131,6,22)}`,patch,'1922');
+['left:-30px;top:20px;transform:rotate(-28deg)','right:-30px;bottom:30px;transform:rotate(-24deg)'].forEach(c=>el('div','abs',`width:150px;height:42px;${c};background:rgba(245,235,200,.75);box-shadow:0 1px 2px rgba(0,0,0,.15)`,patch));
+const dek=clip('dekret1917',20,860,900,2,141,'«Адвокатская газета» · 14.12.2018');
+const meme=el('div','abs sh','width:720px;height:240px;transform-origin:10% 80%',W);
+meme.innerHTML=`<svg width="720" height="240" style="position:absolute;overflow:visible"><path d="M40 20 Q360 -6 690 22 Q718 110 690 190 Q400 212 150 196 L40 250 L84 190 Q20 110 40 20 Z" fill="#fffdf6" stroke="#221e1a" stroke-width="5" filter="url(#rough)"/></svg><div class="sans" style="position:absolute;left:62px;top:60px;font-size:64px;font-weight:900;white-space:nowrap">Это фиаско, братан</div>`;
+UPD.push(t=>{const dt=t-30.2;pPiece.style.display=dt>0.9?'none':'block';
+  if(dt<0)tf(pPiece,PH[0],PH[1]);else{const p=cl(dt/0.9);tf(pPiece,PH[0]+p*520+spr(dt,6,6),PH[1]-eo(p)*700-8*eo(cl(dt/0.08)),p*40,1+0.1*eo(cl(dt/0.08)))}
+  pHole.style.opacity=dt<0?0:1;
+  const pp=P(t,34.8,35.12),land=t-35.12;patch.style.display=t>34.8?'block':'none';
+  tf(patch,PH[0]+PH[2]*0.25-120,PH[1]-30-(1-ei(pp))*260,-4+(1-pp)*-12+spr(land,3,2),1.35-0.35*ei(pp)+(land>0?-spr(land,0.05,3):0));
+  mark(dek,'hl',t,30.8,0.6);mark(dek,'also',t,35.1,0.5);
+  const mp=back(P(t,37.4,37.75),2.2);meme.style.display=t>37.35?'block':'none';tf(meme,-60,1400,-4+spr(t-37.75,4,1.8),0.4+0.6*mp)});
+ev(30.2,'tear',{dur:0.6,gain:0.95});acc(30.22,0.025);ev(30.8,'paper',{dur:0.55,gain:0.35});
+ev(34.8,'whoosh',{dur:0.32,gain:0.4});ev(35.12,'impact',{size:0.9,gain:0.85});ev(35.18,'paper',{dur:0.25,gain:0.45});acc(35.13,0.028);ev(35.1,'paper',{dur:0.4,gain:0.3});
+ev(37.4,'pop',{gain:0.6,k:0.7});ev(37.5,'downer',{dur:1.1,gain:0.75});
+key(30.3,-210,1300,1.05);key(32.4,-80,1290,1.08);key(34.6,-220,1310,1.1);key(37.2,60,1350,1.04);key(39.4,90,1340,1.09);
+caption(30.4,34.6,'Так уже было. В *1917-м* Декрет о суде № 1 упразднил адвокатуру.');
+caption(34.9,37.2,'В *1922-м* её пришлось создавать заново.');
+
+// =====================================================================
+// S5 — 39.6…46.8  отъезд на всю доску; стикер отклеивается: это мятежник
+// =====================================================================
+ev(39.5,'whoosh',{dur:1.1,gain:0.55,size:1.4});ev(40.75,'whoosh',{dur:0.8,gain:0.5});
+key(40.5,1170,650,0.43);key(40.9,1190,640,0.445);
+const [dkx,dky]=wiki.at('dick');key(41.75,dkx+150,dky-60,1.55);key(42.9,dkx+170,dky-50,1.62);
+ev(41.8,'tear',{dur:0.35,gain:0.55});ev(41.85,'paper',{dur:0.4,gain:0.5});ev(42.3,'paper',{dur:0.5,gain:0.35});
+const dc=card(1350,60,720,410,-1.6,151,W);dc.style.zIndex=60;dc.inn.innerHTML=`<div class="hand" style="padding:28px 40px;font-size:62px;line-height:1.08"><b style="color:var(--clay)">КЕЙД:</b> «Когда я стану<br>королём…»<br><b style="color:var(--clay)">ДИК:</b> «Первым делом —<br>убьём всех юристов»</div><div class="tag" style="left:40px;bottom:16px;top:auto">Folger · «Генрих VI», ч. 2, акт IV, сц. 2</div>`;
+el('div','pin','left:345px;top:-10px',dc);
+UPD.push(t=>{const p=eo(P(t,43.2,43.75));dc.style.display=t>43.15?'block':'none';tf(dc,1350-(1-p)*900,60+(1-p)*80,-1.6-(1-p)*8)});
+ev(43.2,'swish',{gain:0.55});ev(43.7,'paper',{dur:0.3,gain:0.4});
+key(43.6,1960,180,1.08);key(46.6,1990,190,1.14);
+caption(42.1,46.7,'Это говорит подручный *мятежника.* В ответ на «когда я стану королём».');
+
+// =====================================================================
+// S6 — 46.8…51.6  адвокат возвращается в дыру (самый громкий удар)
+// =====================================================================
+const back1=svgFig('law',300,'#26221e',W);
+UPD.push(t=>{const dt=t-47.55,fall=cl(dt/0.45);back1.style.display=dt<0?'none':'block';hole.style.display=t>=48.0?'none':'block';
+  const land=t-48.0,sq=land>0?1-spr(land,0.1,2.4):1;tf(back1,HX,G-300-(1-fall*fall)*1500,(1-fall)*-14,1/Math.sqrt(sq),sq)});
+// dust bits on impact
+const DUST=[];{const r=rnd(9);for(let i=0;i<14;i++){const d=el('div','abs',`width:${10+r()*16}px;height:${6+r()*10}px;background:#f3ead6;border-radius:2px`);DUST.push({d,a:-Math.PI*(0.1+0.8*r()),v:300+r()*500,s:r()*360})}}
+UPD.push(t=>{const dt=t-48.0;DUST.forEach(o=>{o.d.style.display=dt>0&&dt<1.1?'block':'none';if(dt<=0)return;
+  tf(o.d,HX+75+Math.cos(o.a)*o.v*dt,G-10+Math.sin(o.a)*o.v*dt+0.5*1500*dt*dt,o.s+dt*400);o.d.style.opacity=1-cl(dt/1.1)})});
+ev(46.75,'whoosh',{dur:0.8,gain:0.55});ev(47.5,'reverse',{dur:0.5,gain:0.6});
+ev(48.0,'impact',{size:1.9,gain:1.6});ev(48.0,'thud',{gain:1.2});ev(48.02,'paper',{dur:0.35,gain:0.6});ev(48.25,'chime',{note:'D',gain:0.5});ev(48.0,'drone',{dur:3.6,note:'D',gain:0.35});
+acc(48.0,0.04);
+key(47.55,2120,1400,0.98);key(48.0,2090,1420,1.02);key(51.6,2060,1440,1.07);
+caption(48.3,51.7,'Адвокат — единственный в зале, кто на *твоей* стороне.');
+
+// ================= NEAR LAYER (out-of-focus paper bits in front) =================
+{const r=rnd(77);[[620,320],[1950,-600],[2900,500],[2500,1900],[-400,1000],[800,1700],[3300,900],[200,-700]].forEach(([x,y],i)=>{
+  const d=el('div','abs pp',`width:${120+r()*160}px;height:${60+r()*90}px;filter:blur(${7+r()*5}px);opacity:.85;clip-path:${jag(240,160,300+i,8,24)}`,N);tf(d,x,y,r()*60-30)})}
+W.appendChild(TH);
+// ================= TIMELINE =================
+CAMK.sort((a,b)=>a[0]-b[0]);const DUR=51.8;window.__duration=DUR;
+window.__seek=function(t){for(const f of UPD)f(t);return 0};
+window.__audioWav=async function(){return SFX.toWavBase64(await SFX.render(EV,DUR,{bed:{bpm:92,key:'D',mood:'tense',db:-16,start:0.0,end:47.78,dropAt:6.8},sfxDb:-1,seed:11}))};
+window.__ready=Promise.all([document.fonts.ready,...[...document.images].map(i=>i.decode().catch(()=>0))]);
+const q=/[?&]t=([\d.]+)/.exec(location.search);
+window.__ready.then(()=>{if(q||/render=1/.test(location.search)){__seek(q?+q[1]:0)}else{const st=performance.now();const loop=()=>{__seek(((performance.now()-st)/1000)%DUR);requestAnimationFrame(loop)};loop()}});
+__seek(q?+q[1]:0);
+</script></body></html>

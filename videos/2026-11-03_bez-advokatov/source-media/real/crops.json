@@ -1,0 +1,117 @@
+{
+ "shakespeare": {
+  "url": "https://en.m.wikipedia.org/wiki/Let%27s_kill_all_the_lawyers",
+  "clip": {
+   "x": 0,
+   "y": 114.890625,
+   "width": 1280,
+   "height": 620
+  },
+  "hl": {
+   "x": 264,
+   "y": 262.5,
+   "w": 342.25,
+   "h": 43
+  },
+  "also": {
+   "x": 264,
+   "y": 340.5,
+   "w": 116.5,
+   "h": 17
+  },
+  "scale": 1.5,
+  "date": "2026-11-03"
+ },
+ "upk51": {
+  "url": "https://legalacts.ru/kodeks/UPK-RF/chast-1/razdel-ii/glava-7/statja-51/",
+  "clip": {
+   "x": 0,
+   "y": 169.65625,
+   "width": 1280,
+   "height": 620
+  },
+  "hl": {
+   "x": 298.546875,
+   "y": 352.5,
+   "w": 522.828125,
+   "h": 19
+  },
+  "also": {
+   "x": 293.375,
+   "y": 248.5,
+   "w": 539,
+   "h": 19
+  },
+  "scale": 1.5,
+  "date": "2026-11-03"
+ },
+ "fpa2025": {
+  "url": "https://www.rapsinews.ru/incident_news/20250418/310799095.html",
+  "clip": {
+   "x": 0,
+   "y": 604.65625,
+   "width": 1280,
+   "height": 662
+  },
+  "hl": {
+   "x": 711.59375,
+   "y": 426,
+   "w": 130.859375,
+   "h": 16
+  },
+  "also": {
+   "x": 192,
+   "y": 220,
+   "w": 631.28125,
+   "h": 40
+  },
+  "scale": 1.5,
+  "date": "2026-11-03"
+ },
+ "dekret1917": {
+  "url": "https://www.advgazeta.ru/mneniya/uprazdnenie-traditsionnoy-rossiyskoy-advokatury-dekretom-o-sude-1917-g/",
+  "clip": {
+   "x": 0,
+   "y": 74.546875,
+   "width": 1280,
+   "height": 620
+  },
+  "hl": {
+   "x": 312,
+   "y": 248,
+   "w": 656.9375,
+   "h": 74
+  },
+  "also": {
+   "x": 632.515625,
+   "y": 348,
+   "w": 313.484375,
+   "h": 24
+  },
+  "scale": 1.5,
+  "date": "2026-11-03"
+ },
+ "konst48": {
+  "url": "https://legalacts.ru/doc/Konstitucija-RF/razdel-i/glava-2/statja-48/",
+  "clip": {
+   "x": 0,
+   "y": 173.65625,
+   "width": 1280,
+   "height": 620
+  },
+  "hl": {
+   "x": 723.890625,
+   "y": 356.5,
+   "w": 182.53125,
+   "h": 19
+  },
+  "also": {
+   "x": 297.453125,
+   "y": 244.5,
+   "w": 264.296875,
+   "h": 19
+  },
+  "scale": 1.5,
+  "date": "2026-11-03"
+ }
+}
