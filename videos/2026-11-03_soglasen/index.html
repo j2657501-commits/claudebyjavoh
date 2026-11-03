@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Я согласен</title>
+<link rel="stylesheet" href="fonts/g.css">
+<style>
+:root{--ink:#221e1a;--clay:#a93a24;--paper:#f6f0e4;--hl:#ffd83a;--void:#2b231d}
+html,body{margin:0;background:#111;overflow:hidden}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:#d8c9ab url(art/wall.jpg);background-size:1024px}
+#cam{position:absolute;inset:0;transform-origin:540px 960px}
+#world,#near{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+.abs{position:absolute;left:0;top:0}
+.sh{filter:drop-shadow(0 10px 12px rgba(50,30,10,.32)) drop-shadow(0 2px 2px rgba(50,30,10,.25))}
+.pp{background:var(--paper) url(art/paper.jpg);background-size:768px}
+.serif{font-family:'PT Serif',serif;font-weight:700;color:var(--ink)}
+.sans{font-family:'Golos Text',sans-serif;color:var(--ink)}
+.hand{font-family:'Caveat',cursive;font-weight:600;color:var(--ink)}
+.mk{position:absolute;background:var(--hl);mix-blend-mode:multiply;transform-origin:0 50%;transform:scaleX(0);border-radius:3px}
+.pin{position:absolute;width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff8a7a,#b3261e 55%,#6d130e);box-shadow:3px 6px 6px rgba(0,0,0,.35)}
+.tag{position:absolute;font:600 30px 'Golos Text',sans-serif;color:#5b4f42;white-space:nowrap}
+#hud{position:absolute;inset:0;pointer-events:none}
+.cap{position:absolute;left:64px;bottom:470px;max-width:860px;opacity:0}
+.cap .in{padding:20px 34px 24px;font:700 56px/1.16 'Golos Text',sans-serif;color:var(--ink)}
+.cap .w{display:inline-block;white-space:pre}
+.cap .k{color:var(--clay)}
+
+</style></head>
+<body><div id="stage"><div id="cam"><div id="world"></div><div id="near"></div></div><div id="hud"></div></div>
+<script src="sfx.js"></script><script src="camlife.js"></script>
+<script>
+"use strict";
+// ================= helpers (everything is a pure function of t) =================
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)), P=(t,a,b)=>cl((t-a)/(b-a));
+const eo=p=>1-Math.pow(1-cl(p),4), eio=p=>{p=cl(p);return p*p*(3-2*p)}, ei=p=>cl(p)*cl(p);
+const back=(p,s=1.9)=>{p=cl(p)-1;return 1+p*p*((s+1)*p+s)};
+const spr=(dt,amp,f=3.2,z=0.42)=>dt<0||dt>2?0:amp*Math.exp(-z*f*6.283*dt)*Math.sin(f*6.283*Math.sqrt(1-z*z)*dt)*1.6;
+const rnd=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const W=document.getElementById('world'), N=document.getElementById('near'), HUD=document.getElementById('hud');
+function el(tag,cls,css,parent,html){const e=document.createElement(tag);if(cls)e.className=cls;if(css)e.style.cssText=css;if(html!=null)e.innerHTML=html;(parent||W).appendChild(e);return e}
+function jag(w,h,seed,amp=5,step=22){const r=rnd(seed),pts=[];const j=()=> (r()-.5)*2*amp;
+  for(let x=0;x<w;x+=step)pts.push([x,cl(j()+amp*0.4,0,amp*2)]);
+  for(let y=0;y<h;y+=step)pts.push([w-cl(j()+amp*0.4,0,amp*2),y]);
+  for(let x=w;x>0;x-=step)pts.push([x,h-cl(j()+amp*0.4,0,amp*2)]);
+  for(let y=h;y>0;y-=step)pts.push([cl(j()+amp*0.4,0,amp*2),y]);
+  return 'polygon('+pts.map(p=>p[0].toFixed(1)+'px '+p[1].toFixed(1)+'px').join(',')+')'}
+const tf=(e,x,y,r=0,sx=1,sy)=>{e.style.transform=`translate(${x.toFixed(2)}px,${y.toFixed(2)}px) rotate(${r.toFixed(3)}deg) scale(${sx.toFixed(4)},${(sy==null?sx:sy).toFixed(4)})`};
+const EV=[]; const ev=(t,n,o)=>EV.push([t,n,o||{}]);
+const UPD=[]; // render callbacks
+const SVGNS='http://www.w3.org/2000/svg';
+// figure silhouettes, viewBox 0 0 60 120 (feet at y=118)
+const HEAD=' M16 13 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 Z';
+const FIG={
+ law:'M14 27 Q26 22 38 27 L41 44 L47 60 L44 62 L39 50 L39 72 L35 118 L28 118 L26 80 L24 118 L17 118 L13 72 L13 50 L9 64 L6 62 L11 44 Z'+HEAD+' M41 61 h16 v14 h-16 Z M45 61 v-4 h8 v4 h-2 v-2 h-4 v2 Z',
+ you:'M14 27 Q26 22 38 27 L42 44 L45 66 L41 67 L39 50 L39 72 L35 118 L28 118 L26 80 L24 118 L17 118 L13 72 L13 50 L11 67 L7 66 L10 44 Z'+HEAD,
+ judge:'M13 27 Q26 21 39 27 L48 118 L4 118 Z'+HEAD,
+ suit:'M11 27 Q26 20 41 27 L45 52 L40 72 L37 118 L29 118 L26 82 L23 118 L15 118 L12 72 L7 52 Z'+HEAD,
+};
+function svgFig(kind,h,fill,parent,opt={}){ // returns wrapper div; feet at wrapper's bottom-centre
+  const s=h/120,w=60*s,d=el('div','abs',`width:${w}px;height:${h}px;transform-origin:50% 100%`,parent);
+  d.innerHTML=`<svg width="${w}" height="${h}" viewBox="0 0 60 120" style="overflow:visible;display:block">${opt.defs||''}<path d="${FIG[kind]}" fill="${fill}" ${opt.attr||''}/></svg>`;
+  d._w=w;d._h=h;return d}
+// rough-edge filter + void gradient (shared)
+const DEFS=el('div','abs','width:0;height:0',document.body);
+DEFS.innerHTML=`<svg width="0" height="0"><defs>
+<filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.6"/></filter>
+<linearGradient id="voidg" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#5a4a3a"/><stop offset="1" stop-color="#8f7d63"/></linearGradient>
+<filter id="holefx" x="-15%" y="-15%" width="130%" height="130%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" result="d"/>
+<feOffset in="d" dx="1.6" dy="2.6" result="o"/><feComposite in="d" in2="o" operator="out" result="inv"/><feGaussianBlur in="inv" stdDeviation="1.3" result="b"/><feFlood flood-color="#120c06" flood-opacity=".85"/><feComposite in2="b" operator="in" result="sh"/>
+<feComposite in="sh" in2="d" operator="in" result="sh2"/><feMerge><feMergeNode in="d"/><feMergeNode in="sh2"/></feMerge></filter></defs></svg>`;
+function holeFig(h,parent){return svgFig('law',h,'url(#voidg)',parent,{attr:'stroke="#fffaf0" stroke-width="1.1" stroke-linejoin="round" filter="url(#holefx)"'})}
+
+// paper card
+function card(x,y,w,h,rot,seed,parent,cls){const wrap=el('div','abs sh',`width:${w}px;height:${h}px`,parent);const inn=el('div','abs pp '+(cls||''),`width:${w}px;height:${h}px;clip-path:${jag(w,h,seed)}`,wrap);wrap._x=x;wrap._y=y;wrap._r=rot;tf(wrap,x,y,rot);wrap.inn=inn;return wrap}
+// evidence clipping from a real screenshot, with marker rects
+const CR=JSON.parse(`{"npr_head": {"w": 690, "h": 250}, "npr_hours": {"w": 690, "h": 150, "hours": [[550.5, 35.8, 84.8, 22], [15, 62.8, 210.1, 22]], "days": [[248, 62.8, 240, 22]]}, "npr_bn": {"w": 690, "h": 70, "bn": [[429.1, 33.0, 150.7, 22]]}, "atl": {"w": 545, "h": 310, "words": [[37.2, 118.0, 87.2, 17]], "min": [[68.4, 166.0, 132.5, 17]], "sites": [[128.0, 286.0, 203.7, 17]], "who": [[186.6, 46.0, 297.9, 17]]}, "atl_sites": {"w": 545, "h": 50, "sites": [[128.0, 24.0, 203.7, 17]]}}`);
+function clip(name,x,y,dispW,rot,seed,src){
+  const c=CR[name],s=dispW/c.w,p=16,w=dispW+2*p,h=c.h*s+2*p;
+  const wrap=el('div','abs sh',`width:${w}px;height:${h}px`);
+  const inn=el('div','abs',`width:${w}px;height:${h}px;background:#fff;clip-path:${jag(w,h,seed,4,26)}`,wrap);
+  el('img','abs',`left:${p}px;top:${p}px;width:${dispW}px;height:${c.h*s}px`,inn).src='art/'+name+'.jpg';
+  const mk={};for(const k in c){if(!Array.isArray(c[k]))continue;mk[k]=c[k].map(b=>el('div','mk',`left:${p+b[0]*s-4}px;top:${p+b[1]*s-2}px;width:${b[2]*s+8}px;height:${b[3]*s+4}px`,inn))}
+  el('div','pin',`left:${w/2-15}px;top:-12px`,wrap);
+  const tg=el('div','tag',`left:${p}px;top:${h+10}px`,wrap,src);
+  const o={wrap,inn,s,p,w,h,mk,x,y,rot,c,
+    at:(k,i=0)=>{const b=c[k][i];return [x+p+(b[0]+b[2]/2)*s, y+p+(b[1]+b[3]/2)*s]},
+    rect:(k,i=0)=>{const b=c[k][i];return [p+b[0]*s,p+b[1]*s,b[2]*s,b[3]*s]}};
+  tf(wrap,x,y,rot);return o}
+const mark=(o,k,t,t0,dur=0.5)=>o.mk[k].forEach((m,i)=>{const n=o.mk[k].length,a=t0+i*dur/n;m.style.transform=`scaleX(${eio(P(t,a,a+dur/n)).toFixed(3)})`});
+
+// ================= CAPTIONS (screen space, paper strip) =================
+const CAPS=[];
+function caption(t0,t1,text){const wrap=el('div','cap sh','',HUD);const inn=el('div','in pp','',wrap);
+  let on=false;const words=text.split(' ').map(wd=>{const st=wd.startsWith('*');if(st)on=true;const k=on;if(wd.includes('*')&&(!st||wd.indexOf('*',1)>0))on=false;return el('span','w'+(k?' k':''),'',inn,wd.replace(/\*/g,'')+' ')});
+  CAPS.push({t0,t1,wrap,inn,words});}
+UPD.push(t=>{for(const c of CAPS){const on=t>=c.t0-0.05&&t<c.t1+0.35;c.wrap.style.display=on?'block':'none';if(!on)continue;
+  if(!c.clip){c.inn.style.clipPath=jag(c.inn.offsetWidth,c.inn.offsetHeight,7+CAPS.indexOf(c),4,24);c.clip=1}
+  const pin=eo(P(t,c.t0,c.t0+0.35)),pout=ei(P(t,c.t1,c.t1+0.3));
+  c.wrap.style.opacity=(pin*(1-pout)).toFixed(3);tf(c.wrap,(1-pin)*-60,pout*60,-0.6+(1-pin)*-2.5);
+  c.words.forEach((w,i)=>{const p=eo(P(t,c.t0+0.08+i*0.06,c.t0+0.38+i*0.06));w.style.transform=`translateY(${((1-p)*26).toFixed(1)}px)`;w.style.opacity=p.toFixed(3)})}});
+
+// ================= CAMERA =================
+const CAMK=[];const key=(t,x,y,z)=>CAMK.push([t,x,y,z]);
+const ACC=[];const acc=(t,a)=>ACC.push([t,a]);
+function camAt(t){const K=CAMK;if(t<=K[0][0])return K[0].slice(1);
+  for(let i=0;i<K.length-1;i++){const a=K[i],b=K[i+1];if(t<=b[0]){const p=eio((t-a[0])/(b[0]-a[0]||1));return [a[1]+(b[1]-a[1])*p,a[2]+(b[2]-a[2])*p,a[3]*Math.pow(b[3]/a[3],p)]}}
+  return K[K.length-1].slice(1)}
+const drift=(t,ph,f)=>Math.sin(t*f*6.283+ph)+0.5*Math.sin(t*f*1.83*6.283+ph*1.7);
+const CAMEL=document.getElementById('cam');
+UPD.push(t=>{let [cx,cy,z]=camAt(t);for(const a of ACC)z*=1+spr(t-a[0],a[1]);z*=1+0.012*Math.sin(t*6.283/7.3);
+  const dx=5*drift(t,0.3,0.061),dy=3.5*drift(t,1.9,0.083),rot=0.28*drift(t,4.1,0.047);
+  W.style.transform=`translate(${(540-cx*z+dx).toFixed(2)}px,${(960-cy*z+dy).toFixed(2)}px) scale(${z.toFixed(5)})`;
+  const k=1.45;N.style.transform=`translate(${(540-cx*z*k+dx*1.5).toFixed(2)}px,${(960-cy*z*k+dy*1.5).toFixed(2)}px) scale(${(z*1.15).toFixed(5)})`;
+  CAMEL.style.transform=`rotate(${rot.toFixed(3)}deg)`;window.__cam=[cx,cy,z]});
+const toScreen=(x,y,t)=>{const [cx,cy,z]=camAt(t);return [540+(x-cx)*z,960+(y-cy)*z,z]};
+
+// ================= RED THREAD =================
+const TH=document.createElementNS(SVGNS,'svg');TH.setAttribute('width',5200);TH.setAttribute('height',3200);TH.style.cssText='position:absolute;left:-1400px;top:-900px;overflow:visible;z-index:50;pointer-events:none';
+const THREADS=[];
+function thread(a,b,t0,t1,sag=1){const p=document.createElementNS(SVGNS,'path');const ax=a[0]+1400,ay=a[1]+900,bx=b[0]+1400,by=b[1]+900,L=Math.hypot(bx-ax,by-ay);
+  p.setAttribute('d',`M${ax} ${ay} Q${(ax+bx)/2} ${(ay+by)/2+(80+L*0.07)*sag} ${bx} ${by}`);p.setAttribute('fill','none');p.setAttribute('stroke','#b3261e');p.setAttribute('stroke-width','4.5');p.setAttribute('stroke-linecap','round');
+  p.style.filter='drop-shadow(2px 5px 3px rgba(0,0,0,.3))';TH.appendChild(p);THREADS.push({p,t0,t1})}
+UPD.push(t=>{for(const h of THREADS){if(!h.L){h.L=h.p.getTotalLength();h.p.style.strokeDasharray=h.L}h.p.style.strokeDashoffset=(h.L*(1-eio(P(t,h.t0,h.t1)))).toFixed(1)}});
+
+// =====================================================================
+// ВСЕ ТАЙМИНГИ ЗДЕСЬ (под озвучку — подставить из voice/words.json)
+// =====================================================================
+const T={tick:0.3,press:1.2,spit:2.0,count:4.0,res:5.4,who:6.6,words:9.6,min:11.3,rain:12.9,sites:15.2,sum:17.0,sum2:17.8,
+  month:19.8,hours:20.6,days:21.1,fill:21.4,usa:24.3,bn:27.6,nobody:30.5,lie:32.4,strike:35.4,rush:37.2,end:39.5,cta:40.0,END:42.2};
+const CAPT=[[0.05,1.8,'Ты только что нажал *«Я согласен».*'],[1.9,3.7,'А ты хоть раз это *читал?*'],[3.9,5.2,'Давай посчитаем.'],
+  [5.4,8.0,'Исследователи из Карнеги-Меллон прикинули:'],[8.1,10.7,'средняя политика конфиденциальности — *2 500 слов.*'],[10.8,12.5,'Это *10 минут* чтения.'],
+  [12.8,16.5,'А таких страниц за год ты встречаешь почти *полторы тысячи.*'],[16.9,19.4,'Итого — *244 часа* в год.'],
+  [19.7,21.3,'Это целый *месяц* работы.'],[21.4,24.0,'Просто чтобы прочитать, на что ты согласился.'],
+  [24.2,30.1,'Если бы все американцы честно это читали, они теряли бы *781 миллиард* долларов в год.'],[30.4,32.1,'Поэтому никто и *не читает.*'],
+  [32.3,36.8,'«Я прочитал и согласен» — самая частая *ложь* в интернете.'],[37.1,39.7,'А ты хоть одно соглашение дочитал *до конца?*'],[39.9,42.2,'Пиши в *комменты.*']];
+CAPT.forEach(c=>caption(c[0],c[1],c[2]));
+
+// ================= ЛЕНТА СОГЛАШЕНИЯ (носитель через весь ролик) =================
+const RX=400,RY=560,RW=280,RL=9200;
+const ribO=el('div','abs',`width:${RW}px;height:${RL}px;transform-origin:50% 0`);tf(ribO,RX,RY);
+const ribS=el('div','abs sh',`width:${RW}px;height:${RL}px`,ribO);
+const ribI=el('div','abs pp',`width:${RW}px;height:${RL}px;clip-path:${jag(RW,RL,401,4,30)};overflow:hidden`,ribS);
+{const F=['Пользователь соглашается','с обработкой персональных данных','включая, но не ограничиваясь,','третьими лицами и партнёрами','в целях улучшения сервиса','без дополнительного уведомления','Компания вправе изменить','настоящие Условия в любое время','продолжая использовать сервис,','вы подтверждаете согласие','файлы cookie и аналогичные','технологии отслеживания','в соответствии с применимым','законодательством','срок хранения данных','определяется Компанией'],r=rnd(4);let h='';
+ for(let i=0;i<560;i++){if(i%9===0)h+=`<b>${Math.floor(i/9)+1}.${1+(i%5)}.</b> `;h+=F[Math.floor(r()*F.length)]+(r()<0.25?'. ':' ')}
+ el('div','sans',`padding:22px 20px;font-size:15px;line-height:22px;font-weight:500;color:#6a6158;text-align:justify`,ribI,h);
+ el('div','abs hand',`left:0;top:${RL-330}px;width:${RW}px;height:300px;background:var(--paper);display:flex;align-items:center;justify-content:center;text-align:center;font-size:56px;line-height:1.02;color:var(--clay)`,ribI,'Конец.<br>Если ты<br>дочитал —<br>ты первый');}
+UPD.push(t=>{const p=eo(P(t,T.spit,T.spit+1.7)),L=RL*p;ribO.style.clipPath=`inset(0 -40px ${(RL-L).toFixed(0)}px -40px)`;ribO.style.display=t<T.spit?'none':'block';
+  const sw=spr(t-T.spit,2.2,1.4)+0.4*Math.sin(t*1.3);tf(ribO,RX,RY,sw*0.6,1)});
+ev(T.spit,'whoosh',{dur:0.9,gain:0.6,size:1.2});ev(T.spit+0.05,'paper',{dur:1.6,gain:0.6});ev(T.spit+0.1,'type',{n:22,rate:16,gain:0.35});
+
+// ================= S1 ТЕЛЕФОН + КНОПКА =================
+const ph=el('div','abs sh','width:520px;height:940px');tf(ph,280,-380,-2);
+const phI=el('div','abs',`width:520px;height:940px;border-radius:70px;background:#26221e;clip-path:${jag(520,940,501,3,26)}`,ph);
+const scr=el('div','abs pp',`left:26px;top:30px;width:468px;height:880px;border-radius:50px;overflow:hidden`,phI);
+scr.innerHTML=`<div class="sans" style="padding:70px 34px 0;font-size:36px;font-weight:800;line-height:1.1">Пользовательское<br>соглашение</div>`+
+ Array.from({length:11},(_,i)=>`<div style="margin:${i?12:28}px 34px 0;height:10px;border-radius:5px;width:${250+((i*97)%150)}px;background:rgba(60,45,30,.16)"></div>`).join('')+
+ `<div class="sans" id="chkrow" style="position:absolute;left:34px;top:560px;display:flex;align-items:center;font-size:34px;font-weight:700"><div id="chk" style="width:46px;height:46px;border:4px solid #221e1a;border-radius:10px;margin-right:18px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#a93a24"></div>Я прочитал и согласен</div>`+
+ `<div id="btn" class="sans" style="position:absolute;left:34px;top:680px;width:400px;height:110px;border-radius:55px;background:#a93a24;color:#fff;font-size:44px;font-weight:900;display:flex;align-items:center;justify-content:center">Я СОГЛАСЕН</div>`;
+const chk=scr.querySelector('#chk'),btn=scr.querySelector('#btn');
+// палец (бумажная вырезка)
+const fing=el('div','abs sh','width:200px;height:620px;transform-origin:50% 10%',W);
+fing.innerHTML=`<svg width="200" height="620" viewBox="0 0 200 620" style="overflow:visible"><path d="M70 40 Q70 0 100 0 Q130 0 130 40 L136 300 Q190 320 196 420 L200 620 L20 620 L28 430 Q30 330 66 300 Z" fill="#e2a97f" stroke="#b97f58" stroke-width="3"/><path d="M80 30 Q80 10 100 10 Q120 10 120 30 L120 70 Q100 78 80 70 Z" fill="#f6dcc6" opacity=".9"/></svg>`;
+const CHK=[280+26+34+23,-380+30+560+23],BTN=[280+26+34+200,-380+30+680+55];
+UPD.push(t=>{ // палец: к галочке, тап, к кнопке, нажатие, уходит
+  const a=eio(P(t,0,0.28)),b=eio(P(t,0.45,1.1)),c=ei(P(t,1.55,2.1));
+  let x=CHK[0]+120+(CHK[0]-CHK[0]-120)*a,y=CHK[1]+260+(CHK[1]-CHK[1]-260)*a;
+  x+= (BTN[0]-CHK[0])*b;y+=(BTN[1]-CHK[1])*b;
+  const tap=Math.max(spr(t-T.tick,1,3)*0.5,0)+Math.max(spr(t-T.press,1,3),0);
+  tf(fing,x-100+c*500,y-14+tap*14+c*900,-14+8*b+c*20,1-0.04*tap);
+  chk.textContent=t>=T.tick?'✓':'';const pr=t>=T.press?1-spr(t-T.press,0.07,2.6):1;btn.style.transform=`scale(${(t>=T.press&&t<T.press+0.1?0.93:pr).toFixed(3)})`});
+ev(T.tick,'click',{gain:0.6});ev(T.press,'click',{gain:0.9,k:0.8});ev(T.press+0.02,'thud',{gain:0.5,size:0.6});acc(T.press+0.02,0.025);
+key(0,540,120,1.05);key(T.press,560,240,1.16);key(T.spit+0.3,540,420,1.0);key(T.spit+1.7,540,880,0.95);key(T.count-0.1,540,1020,1.0);
+
+// ================= S3 «давай посчитаем» =================
+const cnt=card(90,1080,900,200,-3,601,W);cnt.inn.innerHTML='<div class="hand" style="font-size:110px;line-height:200px;text-align:center;white-space:nowrap">давай посчитаем</div>';
+UPD.push(t=>{const p=back(P(t,T.count,T.count+0.4),1.8);cnt.style.opacity=P(t,T.count,T.count+0.08);tf(cnt,90,1080-(1-p)*80,-3+(1-p)*-8,0.9+0.1*p)});
+ev(T.count,'swish',{gain:0.5});ev(T.count+0.35,'paper',{dur:0.3,gain:0.4});
+key(T.count+1.0,520,1180,1.08);
+
+// ================= S4 исследование: 2 514 слов, 10 минут =================
+const atl=clip('atl',60,1430,960,-1,611,'The Atlantic (via Benton) · 01.03.2012');
+UPD.push(t=>{const p=eo(P(t,T.res,T.res+0.55));atl.wrap.style.opacity=P(t,T.res,T.res+0.1);tf(atl.wrap,60+(1-p)*700,1430,-1+(1-p)*6);
+  mark(atl,'who',t,T.who,0.6);mark(atl,'words',t,T.words,0.4);mark(atl,'min',t,T.min,0.45)});
+ev(T.res,'whoosh',{dur:0.5,gain:0.5});ev(T.who,'paper',{dur:0.5,gain:0.35});ev(T.words,'paper',{dur:0.35,gain:0.35});ev(T.min,'paper',{dur:0.4,gain:0.35});
+const cw=card(70,2080,460,260,-2,621,W);cw.inn.innerHTML='<div style="text-align:center;padding-top:26px"><div class="serif" style="font-size:100px;line-height:1">2 514</div><div class="sans" style="font-size:46px;font-weight:700">слов</div></div>';
+const cm=card(560,2090,450,250,2,631,W);cm.inn.innerHTML='<div style="text-align:center;padding-top:24px"><div class="serif" style="font-size:100px;line-height:1;color:var(--clay)">10 мин</div><div class="sans" style="font-size:46px;font-weight:700">чтения</div></div>';
+UPD.push(t=>{[[cw,T.words+0.15,70,2080,-2],[cm,T.min+0.15,560,2090,2]].forEach(([c,t0,x,y,r])=>{const p=back(P(t,t0,t0+0.4),2);c.style.opacity=P(t,t0,t0+0.08);tf(c,x,y-(1-p)*120,r+(1-p)*10,0.85+0.15*p)})});
+ev(T.words+0.5,'thud',{gain:0.6,size:0.7});ev(T.min+0.5,'thud',{gain:0.6,size:0.75});
+const [wx,wy]=atl.at('who'),[sx,sy]=atl.at('words'),[mx,my]=atl.at('min');
+key(T.res+0.6,540,1720,1.0);key(T.who+0.4,wx-60,wy+120,1.3);key(T.words+0.1,sx+160,sy+150,1.3);key(T.min,mx+200,my+260,1.18);key(T.min+1.2,540,2180,1.0);
+
+// ================= S5 1 462 листа =================
+const cnum=el('div','abs serif','font-size:170px;line-height:1;white-space:nowrap;text-align:center;width:1080px');tf(cnum,0,2470);
+const clab=el('div','abs sans','font-size:54px;font-weight:700;white-space:nowrap;text-align:center;width:1080px',W,'политик за год');tf(clab,0,2650);
+const sitesC=clip('atl_sites',60,2740,960,0.8,641,'«…best estimate sitting at 1,462»');
+const SC=34,SR=43,SW=27,SH=26,NS=1462,SX=81,SY=2960;
+const shBox=el('div','abs',`width:${SC*SW}px;height:${SR*SH}px`);tf(shBox,SX,SY);
+shBox.innerHTML=`<svg width="${SC*SW}" height="${SR*SH}" style="overflow:visible"><defs><g id="sht"><rect width="19" height="23" rx="1.5" fill="#fffdf6" stroke="#cfc3ad" stroke-width="1"/><rect x="3.5" y="5" width="12" height="1.6" fill="#b8ab93"/><rect x="3.5" y="9.5" width="12" height="1.6" fill="#b8ab93"/><rect x="3.5" y="14" width="8" height="1.6" fill="#b8ab93"/></g></defs><g id="shs"></g></svg>`;
+const gS=shBox.querySelector('#shs'),SHE=[];{const r=rnd(12);for(let i=0;i<NS;i++){const c=i%SC,rw=SR-1-Math.floor(i/SC);const u=(SR-1-rw)/SR*0.85+r()*0.15;
+  const ti=T.rain+3.1*Math.pow(u,0.85);const e=document.createElementNS(SVGNS,'use');e.setAttribute('href','#sht');gS.appendChild(e);SHE.push({e,x:c*SW+4,y:rw*SH+1,ti,rot:(r()-.5)*24,dx:(r()-.5)*60})}}
+const shT=SHE.map(s=>s.ti).sort((a,b)=>a-b);shT.slice(0,10).forEach((ti,i)=>ev(ti+0.3,'pop',{gain:0.3,k:1.1+i*0.02}));
+ev(T.rain+0.2,'paper',{dur:3.2,gain:0.55});
+UPD.push(t=>{let n=0;for(const s of SHE){const dt=t-s.ti;if(dt<0){s.e.style.display='none';continue}n++;s.e.style.display='';const p=cl(dt/0.32),q=1-ei(1-p);
+  s.e.setAttribute('transform',`translate(${(s.x+s.dx*(1-p)).toFixed(1)},${(s.y-240*(1-p*p)).toFixed(1)}) rotate(${(s.rot*(1-p)).toFixed(1)} 9 11)`)}
+  cnum.textContent=n.toLocaleString('ru-RU').replace(/ |,/g,' ');cnum.style.opacity=P(t,T.rain-0.2,T.rain);clab.style.opacity=P(t,T.rain-0.2,T.rain);
+  sitesC.wrap.style.opacity=P(t,T.sites-0.4,T.sites-0.2);mark(sitesC,'sites',t,T.sites,0.5)});
+ev(T.sites,'paper',{dur:0.4,gain:0.35});
+key(T.rain,540,2900,0.85);key(T.rain+1.6,540,3150,0.8);key(T.sites+0.4,540,3060,0.86);
+
+// ================= S6 = 244 часа =================
+const sum=card(70,3880,940,430,-1.2,651,W);sum.inn.innerHTML='<div style="padding:40px 50px"><div class="serif sl" style="font-size:92px;line-height:1.1">1 462 × 10 мин</div><div class="serif sl" style="font-size:150px;line-height:1.1;color:var(--clay)">= 244 ч</div><div class="sans sl" style="font-size:44px;font-weight:700;color:#5b4f42">в год на чтение политик</div></div>';
+const SL=[...sum.querySelectorAll('.sl')];
+UPD.push(t=>{const p=eo(P(t,T.sum,T.sum+0.4));sum.style.opacity=P(t,T.sum,T.sum+0.1);tf(sum,70,3880+(1-p)*200,-1.2);
+  SL.forEach((l,i)=>{const t0=[T.sum+0.1,T.sum2,T.sum2+0.4][i],q=back(P(t,t0,t0+0.35),2);l.style.opacity=P(t,t0,t0+0.06);l.style.transform=`translateY(${((1-q)*40).toFixed(1)}px) scale(${(0.9+0.1*q).toFixed(3)})`;l.style.transformOrigin='0 50%'})});
+ev(T.sum,'swish',{gain:0.5});ev(T.sum2,'impact',{size:1.0,gain:0.9});acc(T.sum2+0.02,0.03);
+key(T.sum+0.2,540,4040,1.0);key(T.sum2+1.2,540,4090,1.1);
+
+// ================= S7 месяц работы (NPR) + 30 рабочих дней =================
+const nh=clip('npr_head',60,4420,960,1,661,'NPR · 19.04.2012');
+const nhr=clip('npr_hours',60,4800,960,-0.8,671,'');
+UPD.push(t=>{const p=eo(P(t,T.month,T.month+0.5));nh.wrap.style.opacity=P(t,T.month,T.month+0.1);tf(nh.wrap,60-(1-p)*700,4420,1+(1-p)*-6);
+  const q=eo(P(t,T.month+0.3,T.month+0.8));nhr.wrap.style.opacity=P(t,T.month+0.3,T.month+0.4);tf(nhr.wrap,60+(1-q)*700,4800,-0.8);
+  mark(nhr,'hours',t,T.hours,0.45);mark(nhr,'days',t,T.days,0.4)});
+ev(T.month,'whoosh',{dur:0.5,gain:0.5});ev(T.hours,'paper',{dur:0.4,gain:0.35});ev(T.days,'paper',{dur:0.4,gain:0.35});
+const grid=card(70,5110,940,800,0.8,681,W);grid.inn.innerHTML='<div class="serif" style="font-size:72px;padding:30px 44px 10px">30 рабочих дней</div>';
+const CELLS=[];for(let i=0;i<30;i++){const c=i%6,r=Math.floor(i/6);const d=el('div','abs',`left:${44+c*145}px;top:${130+r*128}px;width:130px;height:112px;border:3px solid #b9ab92;border-radius:10px;box-sizing:border-box`,grid.inn);
+  el('div','abs sans',`left:10px;top:6px;font-size:30px;font-weight:700;color:#8a7d68`,d,String(i+1));
+  const cov=el('div','abs',`inset:-3px;border-radius:10px;background:#fffdf6;background-image:repeating-linear-gradient(#fffdf6 0 12px,#c8bca5 12px 14px);transform-origin:0 50%`,d);CELLS.push({cov,ti:T.fill+i*0.075})}
+UPD.push(t=>{const p=eo(P(t,T.fill-0.5,T.fill-0.1));grid.style.opacity=P(t,T.fill-0.5,T.fill-0.4);tf(grid,70,5110+(1-p)*150,0.8);
+  CELLS.forEach(c=>{const q=eo(P(t,c.ti,c.ti+0.18));c.cov.style.transform=`scaleX(${q.toFixed(3)})`})});
+CELLS.forEach((c,i)=>{if(i%2===0)ev(c.ti+0.05,'tick',{gain:0.35,k:0.8+i*0.01})});ev(T.fill+2.3,'thud',{gain:0.6,size:0.8});
+const [hx,hy]=nhr.at('hours',1);key(T.month+0.6,540,4620,1.0);key(T.hours+0.3,hx+200,hy-20,1.3);key(T.days+0.6,560,4880,1.2);key(T.fill+0.5,540,5480,0.95);key(T.usa-0.1,540,5560,1.0);
+
+// ================= S8 781 миллиард =================
+const nb=clip('npr_bn',60,6060,960,-0.5,691,'NPR · 19.04.2012');
+const bnC=card(60,6250,960,330,1,701,W);bnC.inn.innerHTML='<div style="text-align:center;padding-top:40px"><div class="serif" id="bnN" style="font-size:112px;line-height:1;white-space:nowrap">$0</div><div class="hand" style="font-size:80px;color:var(--clay)">в год</div></div>';
+const bnN=bnC.querySelector('#bnN');
+const BILLS=[];{const r=rnd(21);for(let i=0;i<12;i++){const b=el('div','abs sh','width:220px;height:100px;transform-origin:50% 50%');el('div','abs serif',`width:220px;height:100px;background:#9bb88f;border:5px solid #6f8f63;box-sizing:border-box;border-radius:6px;font-size:60px;line-height:90px;text-align:center;color:#3f5a37`,b,'$');BILLS.push({b,x:40+r()*800,t0:T.bn+r()*1.6,rs:(r()-.5)*400,ph:r()*6})}}
+UPD.push(t=>{const p=eo(P(t,T.usa,T.usa+0.5));nb.wrap.style.opacity=P(t,T.usa,T.usa+0.1);tf(nb.wrap,60+(1-p)*700,6060,-0.5);mark(nb,'bn',t,T.bn,0.5);
+  const q=eo(P(t,T.usa+0.6,T.usa+1.0));bnC.style.opacity=P(t,T.usa+0.6,T.usa+0.7);tf(bnC,60,6250+(1-q)*150,1);
+  const v=781e9*ei(P(t,T.usa+1.0,T.bn+0.3));bnN.textContent='$'+Math.round(v).toLocaleString('ru-RU').replace(/ |,/g,' ');
+  BILLS.forEach(o=>{const dt=t-o.t0;o.b.style.display=dt>0&&dt<1.9?'block':'none';if(dt<=0)return;tf(o.b,o.x+40*Math.sin(dt*3+o.ph),5900+dt*520,o.rs*dt*0.4+20*Math.sin(dt*2.4+o.ph))})});
+ev(T.usa,'whoosh',{dur:0.5,gain:0.45});ev(T.usa+1.0,'riser',{dur:T.bn-T.usa-0.7,gain:0.35});ev(T.bn+0.3,'impact',{size:1.1,gain:0.9});acc(T.bn+0.32,0.03);ev(T.bn+0.4,'paper',{dur:1.4,gain:0.45});
+key(T.usa+0.5,540,6230,1.0);key(T.bn,540,6330,1.1);key(T.nobody-0.1,540,6420,1.05);
+
+// ================= S9 никто не читает =================
+const nob=el('div','abs hand','font-size:120px;white-space:nowrap;text-align:center;width:1080px;color:#221e1a',W,'никто не читает');
+const bin=el('div','abs','width:240px;height:260px',W);bin.innerHTML='<svg width="240" height="260"><path d="M20 30 L220 30 L196 255 L44 255 Z" fill="#6b5a45" stroke="#3d3228" stroke-width="5"/><rect x="8" y="12" width="224" height="26" rx="6" fill="#4e4134"/><path d="M80 60 L90 230 M120 60 L120 230 M160 60 L150 230" stroke="#4e4134" stroke-width="6"/></svg>';tf(bin,760,6900);
+const ball=el('div','abs','width:120px;height:120px',W);ball.innerHTML='<svg width="120" height="120"><circle cx="60" cy="60" r="54" fill="#fffdf6" stroke="#b9ab92" stroke-width="3"/><path d="M20 50 L50 40 L70 62 L98 48 M30 80 L56 70 L80 92 M44 22 L60 44 L84 30" stroke="#b9ab92" stroke-width="3" fill="none"/></svg>';
+UPD.push(t=>{const p=back(P(t,T.nobody,T.nobody+0.4),1.6);nob.style.opacity=P(t,T.nobody,T.nobody+0.08);tf(nob,0,6690-(1-p)*60,-2,0.9+0.1*p);
+  const a=P(t,T.nobody+0.3,T.nobody+1.1);ball.style.display=t>T.nobody+0.3&&t<T.nobody+1.15?'block':'none';tf(ball,120+a*700,7000-Math.sin(a*Math.PI)*420+a*40,a*540);
+  const hit=t-(T.nobody+1.1);tf(bin,760,6900,spr(hit,4,2.4))});
+ev(T.nobody+0.3,'swish',{gain:0.5});ev(T.nobody+1.1,'thud',{gain:0.75,size:0.7});ev(T.nobody+1.12,'paper',{dur:0.2,gain:0.5});
+key(T.nobody+0.5,540,6880,1.05);key(T.lie-0.1,540,7000,1.0);
+
+// ================= S10 «Я прочитал и согласен» — ложь =================
+const lb=card(70,7230,940,400,-1,711,W);lb.inn.innerHTML=`<div class="sans" style="position:absolute;left:50px;top:60px;display:flex;align-items:flex-start;font-size:84px;font-weight:800;line-height:1.08"><div style="width:96px;height:96px;border:7px solid #221e1a;border-radius:16px;margin-right:34px;flex:none;display:flex;align-items:center;justify-content:center;color:#a93a24;font-size:84px">✓</div><div>Я <span id="rd">прочитал</span><br>и согласен</div></div>`;
+const rd=lb.querySelector('#rd');rd.style.cssText='position:relative;display:inline-block';const strike=el('div','abs',`left:-8px;right:-8px;top:50%;height:16px;margin-top:-4px;border-radius:8px;background:#c8302a;transform-origin:0 50%;transform:scaleX(0) rotate(-3deg)`,rd);
+const lie=el('div','abs hand','font-size:92px;white-space:nowrap;color:var(--clay)',W,'ложь №1 в интернете');
+UPD.push(t=>{const p=eo(P(t,T.lie,T.lie+0.45));lb.style.opacity=P(t,T.lie,T.lie+0.1);tf(lb,70,7230+(1-p)*200,-1);
+  strike.style.transform=`rotate(-3deg) scaleX(${eio(P(t,T.strike,T.strike+0.35)).toFixed(3)})`;
+  const l=back(P(t,T.strike+0.3,T.strike+0.65),2.2);lie.style.opacity=P(t,T.strike+0.3,T.strike+0.36);tf(lie,150,7660,-4+spr(t-T.strike-0.65,3,2),0.6+0.4*l)});
+ev(T.lie,'swish',{gain:0.5});ev(T.strike,'tear',{dur:0.35,gain:0.7});ev(T.strike+0.3,'pop',{gain:0.6,k:0.8});ev(T.strike+0.4,'downer',{dur:0.8,gain:0.5});acc(T.strike+0.32,0.025);
+key(T.lie+0.5,540,7430,1.05);key(T.strike,560,7440,1.12);key(T.rush,540,7560,1.05);
+
+// ================= S11 вниз по всей ленте до конца =================
+const endY=RY+RL-170;
+key(T.end,540,endY-60,1.0);key(T.cta,540,endY+40,1.0);key(T.END,540,endY+70,1.08);
+ev(T.rush,'whoosh',{dur:2.2,gain:0.6,size:1.6});ev(T.rush+0.2,'riser',{dur:2.0,gain:0.4});ev(T.end,'impact',{size:1.6,gain:1.3});ev(T.end+0.05,'chime',{note:'E',gain:0.5});acc(T.end+0.02,0.035);
+// приз для дочитавшего: искры
+const SPK=[];{const r=rnd(31);for(let i=0;i<16;i++){const d=el('div','abs',`width:16px;height:16px;border-radius:3px;background:${['#ffd83a','#a93a24','#fffdf6'][i%3]}`);SPK.push({d,a:r()*6.283,v:250+r()*450})}}
+UPD.push(t=>{const dt=t-T.end;SPK.forEach(o=>{o.d.style.display=dt>0&&dt<1.2?'block':'none';if(dt<=0)return;tf(o.d,540+Math.cos(o.a)*o.v*dt,endY-140+Math.sin(o.a)*o.v*dt+700*dt*dt,dt*500);o.d.style.opacity=1-cl(dt/1.2)})});
+// CTA: пузырь комментариев
+const cta=el('div','abs sh','width:820px;height:220px;transform-origin:20% 100%',W);
+cta.innerHTML=`<svg width="820" height="220" style="position:absolute;overflow:visible"><path d="M30 14 Q410 -6 790 16 Q812 90 790 170 Q420 190 170 178 L60 238 L96 172 Q12 100 30 14 Z" fill="#fffdf6" stroke="#221e1a" stroke-width="6" filter="url(#rough)"/></svg><div class="sans" style="position:absolute;left:70px;top:46px;font-size:64px;font-weight:900;white-space:nowrap">Дочитал? <span style="color:var(--clay)">Пиши ↓</span></div>`;
+UPD.push(t=>{const p=back(P(t,T.cta,T.cta+0.4),2);cta.style.opacity=P(t,T.cta,T.cta+0.06);tf(cta,130,endY+140,-3+spr(t-T.cta-0.4,3,1.8),0.5+0.5*p)});
+ev(T.cta,'pop',{gain:0.7,k:0.9});ev(T.cta+0.1,'bubble',{gain:0.5});
+
+// ================= NEAR LAYER =================
+{const r=rnd(77);for(let i=0;i<14;i++){const d=el('div','abs pp',`width:${120+r()*150}px;height:${60+r()*90}px;filter:blur(${7+r()*5}px);opacity:.8;clip-path:${jag(240,160,300+i,8,24)}`,N);tf(d,(i%2?820:-120)+r()*160,-200+i*700+r()*300,r()*60-30)}}
+W.appendChild(TH);
+// ================= TIMELINE =================
+CAMK.sort((a,b)=>a[0]-b[0]);const DUR=T.END;window.__duration=DUR;
+window.__seek=function(t){for(const f of UPD)f(t);return 0};
+window.__audioWav=async function(){return SFX.toWavBase64(await SFX.render(EV,DUR,{bed:{bpm:100,key:'E',mood:'warm',db:-9,start:0,end:T.end-0.15,dropAt:T.spit},sfxDb:-1,seed:5}))};
+window.__ready=Promise.all([document.fonts.ready,...[...document.images].map(i=>i.decode().catch(()=>0))]);
+const q=/[?&]t=([\d.]+)/.exec(location.search);
+window.__ready.then(()=>{if(q||/render=1/.test(location.search)){__seek(q?+q[1]:0)}else{const st=performance.now();const loop=()=>{__seek(((performance.now()-st)/1000)%DUR);requestAnimationFrame(loop)};loop()}});
+__seek(q?+q[1]:0);
+</script></body></html>
