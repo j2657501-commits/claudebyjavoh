@@ -9,7 +9,7 @@ canvas{display:block}
 </style>
 <script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
 </head><body>
-<div id="title">another chance</div><div id="sub">lap 05</div><div id="black"></div>
+<div id="title">another chance</div><div id="black"></div>
 <script type="module">
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -18,7 +18,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-const W = 1080, H = 1920, DUR = 48.9;
+const W = 1080, H = 1920, DUR = 12.1;
 const AF = await (await fetch('./audio_feat.json')).json();
 const af = (k, t) => { const i = Math.min(AF[k].length - 1, Math.max(0, Math.round(t * AF.fps))); return AF[k][i]; };
 const afSmooth = (k, t, win = 3) => { let s = 0, n = 0; for (let d = -win; d <= win; d++) { s += af(k, t + d / AF.fps) * (win + 1 - Math.abs(d)); n += win + 1 - Math.abs(d); } return s / n; };
@@ -375,7 +375,7 @@ headHaloG.setAttribute('iInt', new THREE.InstancedBufferAttribute(new Float32Arr
 const headHalos = new THREE.Mesh(headHaloG, haloMat); headHalos.frustumCulled = false; scene.add(headHalos);
 
 // light trail (long-exposure red ribbon behind the car, only seen from afar)
-const TRN = 500;
+const TRN = 500; const TRAIL_LEN = 0.6;
 const trailG = new THREE.BufferGeometry();
 const trailPos = new Float32Array((TRN + 1) * 2 * 3), trailA = new Float32Array((TRN + 1) * 2);
 { const idx = []; for (let i = 0; i < TRN; i++) { const o = i * 2; idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); } trailG.setIndex(idx); }
@@ -461,8 +461,8 @@ composer.addPass(new OutputPass());
 composer.addPass(grade);
 
 // ---------- motion script ----------
-const SPEED = CIRC / 12.3;                    // one physical lap per 12.3 s (two music loops)
-const carS = t => SPEED * (t - 15.2) + CIRC;  // upside-down at 15.2 s; gate at 2.9, 15.2, 27.5, 39.8
+const SPEED = CIRC / 8.5;
+const carS = t => SPEED * (t - 2.9);          // lap gate at 2.9 s (plate 01 -> 02)
 function carPose(s, h = 0) { const f = frame(s); const p = f.C.clone().addScaledVector(f.W, LANE).addScaledVector(f.N, THK + h); return { p, ...f, R: f.W.clone().multiplyScalar(-1) }; }
 function local(cp, x, y, z) { return cp.p.clone().addScaledVector(cp.T, x).addScaledVector(cp.N, y).addScaledVector(cp.R, z); }
 const accents = AF.accents;
@@ -471,15 +471,15 @@ function accent(t) { let a = 0; for (const s of accents) { const d = t - s; if (
 // camera rigs: each returns {p, look, up}
 const WY = V3(0, 1, 0);
 function rigHero(t) {          // 0–6: tight on the tail-light strip, pulling back
-  const cp = carPose(carS(t)); const k = sstep(0, 6.2, t);
+  const cp = carPose(carS(t)); const k = sstep(0, 3.6, t);
   const p = local(cp, lerp(-4.1, -8.0, k), lerp(0.95, 1.9, k), lerp(0.75, -1.5, k));
   const look = local(cp, lerp(-1.6, 2.0, k), lerp(0.8, 0.9, k), lerp(0.1, 0, k));
   return { p, look, up: cp.N };
 }
 function rigChase(t) {         // 6–12.5: high chase, road corkscrews ahead
-  const cp = carPose(carS(t)); const k = sstep(5.5, 12.5, t);
-  const p = local(cp, lerp(-9, -15, k), lerp(2.6, 5.4, k), lerp(-1.4, 1.8, k));
-  return { p, look: local(cp, 16, 1.2, 0), up: cp.N };
+  const cp = carPose(carS(t)); const k = sstep(3.0, 7.0, t);
+  const p = local(cp, lerp(-9, -14, k), lerp(2.6, 4.6, k), lerp(-1.4, 2.4, k));
+  return { p, look: local(cp, 14, 1.0, 0), up: cp.N.clone().lerp(WY, 0.9 * k).normalize() };
 }
 function rigFlip(t) {          // 12.5–21: world-up camera, car rolls onto the ceiling and back
   const cp = carPose(carS(t)); const k = sstep(12.3, 21, t);
@@ -488,8 +488,8 @@ function rigFlip(t) {          // 12.5–21: world-up camera, car rolls onto the
   return { p, look: local(cp, 0, 0.7, 0), up: WY };
 }
 function rigReveal(t) {        // 22–34: the impossible ring above a sea of fog
-  const k = sstep(21, 34, t); const phi = lerp(-0.9, -0.15, k) + Math.PI * 0.5;
-  const rad = lerp(120, 175, k), ht = lerp(70, 118, k);
+  const k = sstep(6.4, 12.1, t); const phi = lerp(-0.75, -0.2, k) + Math.PI * 0.5;
+  const rad = lerp(150, 190, k), ht = lerp(95, 128, k);
   const cp = carPose(carS(t));
   const look = V3(0, -6, 0).lerp(cp.p, 0.18);
   return { p: V3(Math.cos(phi) * rad, ht, Math.sin(phi) * rad), look, up: WY };
@@ -502,8 +502,7 @@ function rigEnd(t) {           // 38.5–49: back on the bumper, then let the ca
   return { p, look: local(cp, 0, 0.85, 0), up: cc.N };
 }
 const shots = [
-  { f: rigHero, a: 0, b: 6.0 }, { f: rigChase, a: 7.2, b: 11.4 }, { f: rigFlip, a: 13.0, b: 20.6 },
-  { f: rigReveal, a: 24.6, b: 33.4 }, { f: rigEnd, a: 39.0, b: 99 }
+  { f: rigHero, a: 0, b: 3.1 }, { f: rigChase, a: 4.0, b: 6.3 }, { f: rigReveal, a: 8.7, b: 99 }
 ];
 function camAt(t) {
   let i = shots.findIndex(s => t <= s.b); if (i < 0) i = shots.length - 1;
@@ -513,11 +512,11 @@ function camAt(t) {
   const A = prev.f(t), B = cur.f(t);
   const p = A.p.clone().lerp(B.p, k), look = A.look.clone().lerp(B.look, sstep(0, 1, k));
   // crane arc for long moves (reveal in / dive out)
-  if (i === 3 || i === 4) { const lift = Math.sin(Math.PI * k) * (i === 3 ? 25 : 40); p.y += lift; }
+  if (i === 2) { p.y += Math.sin(Math.PI * k) * 18; }
   const up = A.up.clone().lerp(B.up, k); if (up.lengthSq() < 1e-4) up.copy(WY);
   return { p, look, up: up.normalize() };
 }
-const fogAt = t => { let d = 0.034; d = lerp(d, 0.0055, sstep(21.0, 26.5, t)); d = lerp(d, 0.034, sstep(33.4, 38.4, t)); d = lerp(d, 0.05, sstep(43.5, 47.5, t)); return d; };
+const fogAt = t => lerp(0.034, 0.0055, sstep(6.4, 9.6, t));
 
 // ---------- seek ----------
 const titleEl = document.getElementById('title'), subEl = document.getElementById('sub'), blackEl = document.getElementById('black');
@@ -525,7 +524,7 @@ function seek(t) {
   const bass = afSmooth('bass', t, 2);
   U.time.value = t; U.bass.value = bass * 0.8;
   const fd = fogAt(t); U.fogD.value = fd; scene.fog.density = fd;
-  const reveal = sstep(21.0, 26.0, t) * (1 - sstep(33.4, 37.5, t));
+  const reveal = sstep(6.4, 9.4, t);
   window._skyMat.uniforms.vis.value = reveal; window._seaMat.uniforms.vis.value = reveal;
   scene.background.copy(FOGC);
   // car
@@ -556,9 +555,9 @@ function seek(t) {
   mistMat.uniforms.camP.value.copy(camera.position); mistMat.uniforms.vis.value = 1 - reveal; window._seaMat.uniforms.camP.value.copy(camera.position);
   // trail: last ~0.85 lap behind the car, slightly above the surface (tail-light height)
   const camDist = camera.position.distanceTo(cp.p);
-  trailMat.uniforms.vis.value = sstep(70, 130, camDist) * sstep(20, 24, t) * (1 - sstep(35, 37.5, t));
+  trailMat.uniforms.vis.value = sstep(60, 110, camDist);
   for (let i = 0; i <= TRN; i++) {
-    const back = i / TRN * CIRC * 0.85, ss = s - back, f = frame(ss);
+    const back = i / TRN * CIRC * TRAIL_LEN, ss = s - back, f = frame(ss);
     const c0 = f.C.clone().addScaledVector(f.W, LANE).addScaledVector(f.N, THK + 0.93);
     const wv = f.N.clone().multiplyScalar(0.35);
     trailPos.set([c0.x + wv.x, c0.y + wv.y, c0.z + wv.z, c0.x - wv.x, c0.y - wv.y, c0.z - wv.z], i * 6);
@@ -566,10 +565,9 @@ function seek(t) {
   }
   trailG.attributes.position.needsUpdate = true; trailG.attributes.a.needsUpdate = true;
   // titles
-  const ti = sstep(44.2, 45.6, t) * (1 - sstep(47.4, 48.6, t));
-  titleEl.style.opacity = ti; titleEl.style.letterSpacing = lerp(0.62, 0.42, sstep(44.2, 47.5, t)) + 'em';
-  subEl.style.opacity = sstep(45.0, 46.0, t) * (1 - sstep(47.4, 48.6, t));
-  blackEl.style.opacity = Math.max(1 - sstep(0.0, 0.35, t), sstep(47.6, 48.85, t));
+  const ti = sstep(9.4, 10.6, t);
+  titleEl.style.opacity = ti; titleEl.style.letterSpacing = lerp(0.62, 0.42, sstep(9.4, 11.8, t)) + 'em';
+  blackEl.style.opacity = Math.max(1 - sstep(0.0, 0.3, t), sstep(11.45, 12.05, t));
   grade.uniforms.time.value = t;
   composer.render();
 }
