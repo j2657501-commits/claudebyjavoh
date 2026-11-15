@@ -152,7 +152,7 @@ Everything depends on timing. An error of one millionth of a second would put th
 
 Originally the best signal was reserved for the military, and civilian receivers were deliberately made less accurate. That restriction ended in 2000, and accuracy improved overnight from about 100 metres to about ten. Today GPS and similar systems run by Europe, Russia and China guide aircraft, ships and tractors, and the precise time signals are used to coordinate mobile phone networks and banking transactions.
 @V
-take for granted = принимать как должное
+take it for granted = принимать как должное
 orbit = вращаться по орбите
 broadcast = передавать (сигнал)
 receiver = приёмник
@@ -213,7 +213,7 @@ rebel = восставать
 plant = завод
 welding = сварка
 inflexible = негибкий
-fence off = огораживать
+fenced off (fence off) = огораживать
 collaborative = совместный
 sensor = датчик
 maintenance = техническое обслуживание
