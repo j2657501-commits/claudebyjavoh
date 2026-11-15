@@ -171,37 +171,56 @@ def build_reading(errors):
     return num, total_q, "".join(toc), "\n".join(secs)
 
 
-def build_listening(errors):
-    secs, toc, num = [], [], 0
+def listening_units():
+    """All listening sections, ordered Section 1..4 (stable within a section)."""
+    units = []
     for f in sorted(glob.glob(os.path.join(SRC, "l*.txt"))):
         for block in parse_blocks(open(f, encoding="utf-8").read()):
-            num += 1
             title, sec, groups = parse_block(block)
             name, _, cat = [x.strip() for x in title.partition("|")]
-            where = f"Listening {num} ({name})"
-            lines = sec.get("S", [])
-            script = []
-            for ln in lines:
+            lines = []
+            for ln in sec.get("S", []):
                 m = re.match(r"^([A-Z][A-Za-z .]{0,18}):\s*(.*)$", ln)
-                sp, tx = (m.group(1), m.group(2)) if m else ("", ln)
-                script.append(f"<p data-sp=\"{E(sp)}\"><b>{E(sp)}{':' if sp else ''}</b> <span>{E(tx)}</span></p>")
-            qhtml, nq = render_questions(groups, 0, errors, where)
-            if nq != 10:
-                errors.append(f"{where}: {nq} questions (expected 10)")
-            ctx = " ".join(sec.get("CTX", []))
-            toc.append(f"<a href='#l{num}' title='{E(name)}'>{num}</a>")
-            secs.append(
-                f"<section class='unit listen' id='l{num}'><h3>Listening {num}. {E(name)} "
-                f"<span class='tag'>{E(cat)}</span></h3><p class='ctx'>{E(ctx)}</p>"
-                f"<div class='player'><button class='play'>▶ Слушать</button>"
-                f"<button class='stop'>■ Стоп</button>"
-                f"<label>Скорость <select class='rate'><option value='0.8'>0.8×</option>"
-                f"<option value='0.95' selected>1×</option><option value='1.1'>1.15×</option></select></label>"
-                f"<span class='pstat'></span></div>"
-                f"<div class='qs'>{qhtml}</div>"
-                f"<details class='script'><summary>Транскрипт (открывай только после проверки)</summary>"
-                f"{''.join(script)}</details></section>")
-    return num, "".join(toc), "\n".join(secs)
+                lines.append((m.group(1), m.group(2)) if m else ("", ln))
+            voices = dict(x.split("=") for x in " ".join(sec.get("VOICES", [])).split())
+            units.append({"name": name, "cat": cat, "ctx": " ".join(sec.get("CTX", [])),
+                          "lines": lines, "voices": voices, "groups": groups})
+    units.sort(key=lambda u: u["cat"])
+    return units
+
+
+def build_listening(errors):
+    secs, toc = [], []
+    units = listening_units()
+    for num, u in enumerate(units, 1):
+        name, cat = u["name"], u["cat"]
+        where = f"Listening {num} ({name})"
+        for sp, _ in u["lines"]:
+            if sp not in u["voices"]:
+                errors.append(f"{where}: no voice for speaker '{sp}'")
+                break
+        script = [f"<p data-sp=\"{E(sp)}\"><b>{E(sp)}{':' if sp else ''}</b> <span>{E(tx)}</span></p>"
+                  for sp, tx in u["lines"]]
+        qhtml, nq = render_questions(u["groups"], 0, errors, where)
+        if nq != 10:
+            errors.append(f"{where}: {nq} questions (expected 10)")
+        audio = f"audio/listening-{num:02d}.mp3"
+        if not os.path.exists(os.path.join(ROOT, audio)):
+            errors.append(f"{where}: missing {audio}")
+        toc.append(f"<a href='#l{num}' title='{E(name)}'>{num}</a>")
+        secs.append(
+            f"<section class='unit listen' id='l{num}'><h3>Listening {num}. {E(name)} "
+            f"<span class='tag'>{E(cat)}</span></h3><p class='ctx'>{E(u['ctx'])}</p>"
+            f"<div class='player'><audio controls preload='none' src='{audio}'></audio>"
+            f"<label>Скорость <select class='rate'><option value='0.85'>0.85×</option>"
+            f"<option value='1' selected>1×</option><option value='1.15'>1.15×</option></select></label>"
+            f"<a class='dl' href='{audio}' download>mp3</a>"
+            f"<span class='tts' hidden><button class='play'>▶ Озвучить браузером</button>"
+            f"<button class='stop'>■ Стоп</button></span><span class='pstat'></span></div>"
+            f"<div class='qs'>{qhtml}</div>"
+            f"<details class='script'><summary>Транскрипт (открывай только после проверки)</summary>"
+            f"{''.join(script)}</details></section>")
+    return len(units), "".join(toc), "\n".join(secs)
 
 
 def build_cards():
@@ -224,6 +243,7 @@ def build_cards():
 
 def main():
     errors = []
+    os.makedirs(os.path.join(ROOT, "web"), exist_ok=True)
     nr, nq, rtoc, reading = build_reading(errors)
     nl, ltoc, listening = build_listening(errors)
     rd = lambda n: open(os.path.join(SRC, n), encoding="utf-8").read()
@@ -234,7 +254,17 @@ def main():
         "{{WRITING}}": rd("writing.html"), "{{SPEAKING}}": rd("speaking.html").replace("{{CARDS}}", build_cards()[0]),
     }.items():
         page = page.replace(k, v)
-    open(OUT, "w", encoding="utf-8").write(page)
+    head, body = page.split("<!--BODY-->")
+    note = " Аудиофайлы лежат в папке <b>audio</b> — она должна находиться рядом с этим файлом."
+    # 1) standalone file: a full HTML document that plays audio from ./audio
+    open(OUT, "w", encoding="utf-8").write(
+        "<!doctype html>\n<html lang=\"ru\">\n<head>\n<meta charset=\"utf-8\">\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        + head + "</head>\n<body>\n" + body.replace("{{AUDIONOTE}}", note) + "</body>\n</html>\n")
+    # 2) page body for publishing as an artifact (the host adds the document skeleton;
+    #    download links do nothing there, so they are dropped)
+    web = re.sub(r"<a class='dl'[^>]*>mp3</a>", "", head + body.replace("{{AUDIONOTE}}", ""))
+    open(os.path.join(ROOT, "web", "index.html"), "w", encoding="utf-8").write(web)
     print(f"reading passages: {nr}, reading questions: {nq}, listening: {nl}")
     print(f"output: {OUT} ({os.path.getsize(OUT)//1024} KB)")
     for e in errors:

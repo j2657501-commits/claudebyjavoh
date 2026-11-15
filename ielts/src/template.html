@@ -1,35 +1,42 @@
-<!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>IELTS: 4 Skills Pack</title>
+<title>IELTS Skills Pack</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
 <style>
-:root{--bg:#f6f4ee;--card:#fff;--ink:#1d2433;--mute:#667085;--line:#e2ddd0;--acc:#b3261e;--acc2:#0b5cad;--ok:#1a7f4b;--bad:#c0362c;--soft:#fbf3e4}
-@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1c2029;--ink:#e7e9ee;--mute:#98a2b3;--line:#2e3442;--acc:#ff8a80;--acc2:#7ab8ff;--ok:#5fd39a;--bad:#ff8d85;--soft:#252a35}}
+/* Layout: one reading column (max 860px) of study cards under a sticky section bar; passages in serif, controls in sans. */
+:root{--bg:#f2f5f9;--card:#ffffff;--ink:#162033;--mute:#5a6880;--line:#d8dfe9;--soft:#e9eff7;
+--acc:#2348a6;--on-acc:#ffffff;--word:#0b6e66;--mark:#b4530a;--ok:#177245;--bad:#b3322a;
+--ui:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--read:"Source Serif 4",Georgia,"Times New Roman",serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141c;--card:#171e29;--ink:#e5eaf1;--mute:#93a0b4;--line:#2a3545;--soft:#1e2938;
+--acc:#8fb2ff;--on-acc:#0f141c;--word:#5fd0c3;--mark:#f0a860;--ok:#62d39b;--bad:#ff8f86;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f141c;--card:#171e29;--ink:#e5eaf1;--mute:#93a0b4;--line:#2a3545;--soft:#1e2938;
+--acc:#8fb2ff;--on-acc:#0f141c;--word:#5fd0c3;--mark:#f0a860;--ok:#62d39b;--bad:#ff8f86;color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
-nav{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;gap:4px;padding:8px 12px;overflow-x:auto;font-family:system-ui,sans-serif}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--ui)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--card)}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;gap:4px;padding-block:8px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));overflow-x:auto}
 nav a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:600;font-size:15px;white-space:nowrap}
-nav a:hover{background:var(--soft)}
-main{max-width:860px;margin:0 auto;padding:16px}
-h1{font-size:34px;line-height:1.15;margin:28px 0 8px}
-h2{font-size:28px;margin:56px 0 12px;padding-top:12px;border-top:3px solid var(--acc);scroll-margin-top:60px}
-h3{font-size:21px;margin:0 0 10px;line-height:1.3}
-h4{font-size:18px;margin:22px 0 6px;font-family:system-ui,sans-serif}
-.lead{color:var(--mute);font-family:system-ui,sans-serif;font-size:15px}
-.unit,.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:18px 0;scroll-margin-top:60px}
-.tag,.wc{font:600 12px system-ui,sans-serif;background:var(--soft);border-radius:999px;padding:2px 9px;color:var(--mute);vertical-align:middle;white-space:nowrap}
-.toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px;font-family:system-ui,sans-serif;margin:10px 0 20px}
-.toc a{text-align:center;padding:6px 0;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--acc2);background:var(--card);font-size:14px}
-.vocab{background:var(--soft);border-radius:8px;padding:8px 14px;font-family:system-ui,sans-serif;font-size:14.5px}
+nav a:hover,nav a:focus-visible{background:var(--soft)}
+main{max-width:860px;margin:0 auto;padding-block:16px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3,h4{text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:32px;line-height:1.15;margin:28px 0 8px}
+h2{font-size:26px;margin:56px 0 12px;padding-top:14px;border-top:3px solid var(--acc);scroll-margin-top:64px}
+h3{font-size:19px;margin:0 0 10px;line-height:1.3}
+main>h3{margin-top:32px}
+h4{font-size:16px;margin:22px 0 6px}
+.lead{color:var(--mute);font-size:15px}
+.unit,.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:18px 0;scroll-margin-top:64px;min-width:0}
+.tag,.wc{font:600 12px var(--ui);background:var(--soft);border-radius:999px;padding:2px 9px;color:var(--mute);vertical-align:middle;white-space:nowrap}
+.toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px;margin:10px 0 20px}
+.toc a{text-align:center;padding:6px 0;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--acc);background:var(--card);font-size:14px;font-variant-numeric:tabular-nums}
+.vocab{background:var(--soft);border-radius:8px;padding:8px 14px;font-size:14.5px}
 .vocab summary,.script summary,details.model summary{cursor:pointer;font-weight:700}
 .vocab ul{columns:2;margin:6px 0;padding-left:18px}
-@media(max-width:600px){.vocab ul{columns:1}body{font-size:16px}h1{font-size:27px}}
-.text p{margin:12px 0}
-.pl{font:700 13px system-ui,sans-serif;color:var(--acc);margin-right:4px}
-.vw{color:var(--acc2)}
-.qs{border-top:1px dashed var(--line);margin-top:14px;padding-top:6px;font-family:system-ui,sans-serif;font-size:15.5px}
+.text,details.model p{font:17.5px/1.62 var(--read)}
+.text p{margin:12px 0;max-width:70ch}
+.pl{font:700 13px var(--ui);color:var(--mark);margin-right:4px}
+.vw{color:var(--word)}
+.qs{border-top:1px dashed var(--line);margin-top:14px;padding-top:6px;font-size:15.5px}
 .instr{color:var(--mute);font-size:14px;margin:14px 0 6px}
 .q{margin:8px 0;padding:6px 8px;border-radius:8px}
 .q .n{display:inline-block;min-width:24px;height:24px;line-height:24px;text-align:center;border-radius:6px;background:var(--ink);color:var(--card);font-weight:700;font-size:13px;margin-right:4px}
@@ -42,52 +49,69 @@ h4{font-size:18px;margin:22px 0 6px;font-family:system-ui,sans-serif}
 .opts,.heads{margin:4px 0 0 30px;padding:0;list-style:none}
 .heads{background:var(--soft);padding:8px 14px;border-radius:8px;margin-left:0}
 .btns{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-button{font:600 14px system-ui,sans-serif;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
-button.chk,button.play{background:var(--acc2);color:#fff;border-color:var(--acc2)}
-.score{font-weight:700;margin-left:6px}
-.player{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:system-ui,sans-serif;font-size:14px;margin:8px 0}
+button{font:600 14px var(--ui);padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.chk,button.play{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.score{font-weight:700;margin-left:6px;font-variant-numeric:tabular-nums}
+.player{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:14px;margin:8px 0}
+.player audio{flex:1 1 280px;min-width:0;max-width:100%;height:40px}
+.player .dl{font-size:13px}
 .ctx{font-style:italic;color:var(--mute);margin:4px 0}
 .script p{margin:6px 0;font-size:15.5px}
 .script p.now{background:var(--soft)}
-table{border-collapse:collapse;margin:10px 0;font:14.5px system-ui,sans-serif;width:100%}
+table{border-collapse:collapse;margin:10px 0;font-size:14.5px;width:100%}
 th,td{border:1px solid var(--line);padding:5px 9px;text-align:left}
 th{background:var(--soft)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .tw{overflow-x:auto}
-.task{background:var(--soft);border-left:4px solid var(--acc);padding:10px 14px;border-radius:0 8px 8px 0;margin:10px 0}
-.src{font:13px system-ui,sans-serif;color:var(--mute)}
+.task{background:var(--soft);border-left:4px solid var(--acc);padding:10px 14px;border-radius:0 8px 8px 0;margin:10px 0;font-family:var(--read);font-size:17px}
+.src{font-size:13px;color:var(--mute)}
 ol.ql li,ul.ql li{margin:5px 0}
 .cue{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0;background:var(--card)}
-.cue b.new{font:700 11px system-ui,sans-serif;color:#fff;background:var(--acc);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.cue b.new{font:700 11px var(--ui);color:var(--on-acc);background:var(--acc);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;letter-spacing:.04em}
 .cue ul{margin:4px 0}
 .chart{margin:8px 0;max-width:100%}
-a{color:var(--acc2)}
-@media print{nav,.btns,.player{display:none}.unit,.card{break-inside:avoid-page;border:none;padding:0}body{background:#fff;font-size:12pt}.q .ans{display:none!important}}
+a{color:var(--acc)}
+@media(max-width:600px){.q input{width:130px}.vocab ul{columns:1}h1{font-size:26px}.unit,.card{padding:14px}.text,details.model p{font-size:16.5px}}
+@media print{nav,.btns,.player{display:none}.unit,.card{break-inside:avoid-page;border:none;padding:0}.q .ans{display:none!important}}
 </style>
-</head>
-<body>
-<nav><a href="#top">IELTS Pack</a><a href="#reading">📖 Reading</a><a href="#listening">🎧 Listening</a><a href="#writing">✍️ Writing</a><a href="#speaking">🗣 Speaking</a></nav>
+<!--BODY-->
+<nav><a href="#top">IELTS Pack</a><a href="#reading">Reading</a><a href="#listening">Listening</a><a href="#writing">Writing</a><a href="#speaking">Speaking</a></nav>
 <main id="top">
-<h1>IELTS: все 4 навыка в одном файле</h1>
-<p class="lead">Reading — {{NR}} текстов ({{NQ}} вопросов) с новыми словами и заданиями · Listening — {{NL}} секций с озвучкой · Writing — актуальные Task 1 и Task 2 · Speaking — актуальные Part 1, 2, 3 (сентябрь–декабрь 2026). Составлено 15 ноября 2026.</p>
+<h1>IELTS: все 4 навыка</h1>
+<p class="lead">Reading — {{NR}} текстов ({{NQ}} вопросов) с новыми словами и заданиями · Listening — {{NL}} аудиозаписей по 10 вопросов · Writing — актуальные Task 1 и Task 2 · Speaking — актуальные Part 1, 2, 3 (сентябрь–декабрь 2026). Составлено 15 ноября 2026.</p>
 <div class="card lead">
-<b>Как пользоваться.</b> Reading: сначала просмотри «Новые слова», прочитай текст, ответь на вопросы и нажми «Проверить» — правильные ответы подсветятся зелёным, ошибки красным с верным ответом. Listening: нажми «▶ Слушать» (озвучка идёт голосом твоего браузера, нужен английский голос в системе; лучше всего работает в Chrome/Edge/Safari), отвечай во время прослушивания, транскрипт открывай только после проверки. Тексты Reading и Listening написаны специально для этого файла в формате IELTS: они короче экзаменационных (на экзамене 700–900 слов и 13–14 вопросов на текст), поэтому на один текст закладывай 8–10 минут.
+<b>Как пользоваться.</b> Reading: просмотри «Новые слова», прочитай текст, ответь на вопросы и нажми «Проверить» — верные ответы подсветятся зелёным, ошибки красным с правильным вариантом. Listening: включи запись, отвечай во время прослушивания, транскрипт открывай только после проверки. Тексты и записи составлены специально для этого набора в формате IELTS; они короче экзаменационных (на экзамене текст Reading — 700–900 слов и 13–14 вопросов, секция Listening — 5–7 минут), поэтому на один текст закладывай 8–10 минут.
 </div>
 
-<h2 id="reading">📖 Reading — {{NR}} passages</h2>
+<h2 id="reading">Reading — {{NR}} passages</h2>
 <p class="lead">Типы заданий: True / False / Not Given, Yes / No / Not Given, Multiple choice, Sentence completion, Summary completion, Short answers, Matching information, Matching headings.</p>
 <div class="toc">{{RTOC}}</div>
 {{READING}}
 
-<h2 id="listening">🎧 Listening — {{NL}} sections</h2>
-<p class="lead">Формат как на экзамене: Section 1 — бытовой диалог, Section 2 — монолог на бытовую тему, Section 3 — учебное обсуждение, Section 4 — лекция. В каждой секции 10 вопросов. Пиши ответы во время прослушивания; на экзамене запись звучит один раз.</p>
+<h2 id="listening">Listening — {{NL}} recordings</h2>
+<p class="lead">Формат как на экзамене: Section 1 — бытовой диалог (записи 1–13), Section 2 — монолог на бытовую тему (14–25), Section 3 — учебное обсуждение (26–37), Section 4 — лекция (38–50). Среди них есть записи в формате подкаста (20, 48, 49, 50). Голоса разные: британский и американский акцент, мужские и женские. На экзамене запись звучит один раз — пиши ответы во время прослушивания.{{AUDIONOTE}}</p>
 <div class="toc">{{LTOC}}</div>
 {{LISTENING}}
+<div class="card">
+<h3>Настоящие подкасты для ежедневной практики</h3>
+<p class="lead">Записи выше озвучены синтезатором. Чтобы привыкать к живой речи, слушай бесплатные подкасты на их сайтах — по одному выпуску в день.</p>
+<ul class="ql">
+<li><a href="https://www.bbc.co.uk/learningenglish/english/features/6-minute-english">BBC Learning English — 6 Minute English</a>: 6 минут, два ведущих, есть транскрипт и словарь. Лучший старт для уровня 5.5–6.5.</li>
+<li><a href="https://www.bbc.co.uk/learningenglish/english/features/the-english-we-speak">BBC Learning English — The English We Speak</a>: 3 минуты, разговорные выражения для Speaking.</li>
+<li><a href="https://www.bbc.co.uk/programmes/p02nq0gn">BBC World Service — Global News Podcast</a>: новости в естественном темпе, разные акценты.</li>
+<li><a href="https://www.bbc.co.uk/programmes/p016tmg1">BBC World Service — The History Hour</a> и <a href="https://www.bbc.co.uk/programmes/p002w557">Discovery</a>: история и наука — близко к Section 4.</li>
+<li><a href="https://www.bbc.co.uk/programmes/b036f7w2">BBC Radio 4 — Inside Science</a> и <a href="https://www.bbc.co.uk/programmes/b006qykl">In Our Time</a>: академические обсуждения, уровень 7+.</li>
+<li><a href="https://www.ted.com/podcasts/ted-talks-daily">TED Talks Daily</a>: лекции 10–15 минут, американский акцент.</li>
+<li><a href="https://www.abc.net.au/listen/programs/scienceshow">ABC — The Science Show</a>: австралийский акцент, который тоже встречается на экзамене.</li>
+</ul>
+<p class="lead">Как слушать с пользой: первый раз без текста и запиши 5–10 ключевых фактов (цифры, имена, даты); второй раз с транскриптом; выпиши 5 новых выражений.</p>
+</div>
 
-<h2 id="writing">✍️ Writing</h2>
+<h2 id="writing">Writing</h2>
 {{WRITING}}
 
-<h2 id="speaking">🗣 Speaking</h2>
+<h2 id="speaking">Speaking</h2>
 {{SPEAKING}}
 </main>
 <script>
@@ -128,7 +152,7 @@ function play(u){
   if(!vs.length){stat.textContent='Английский голос не найден — проверь голоса в настройках системы.';}
   const lines=[...u.querySelectorAll('.script p')];
   const sp=[...new Set(lines.map(p=>p.dataset.sp))];
-  const rate=parseFloat(u.querySelector('.rate').value);
+  const rate=parseFloat(u.querySelector('.rate').value)*0.95;
   let i=0;
   (function next(){
     if(my!==token)return;
@@ -143,6 +167,13 @@ function play(u){
     speechSynthesis.speak(ut);
   })();
 }
+document.querySelectorAll('.listen audio').forEach(au=>{
+  const u=au.closest('.unit'),sel=u.querySelector('.rate');
+  au.addEventListener('error',()=>{au.hidden=true;const d=u.querySelector('.dl');if(d)d.hidden=true;u.querySelector('.tts').hidden=false;
+    u.querySelector('.pstat').textContent='Аудиофайл не загрузился — доступна озвучка браузером.';});
+  au.addEventListener('play',()=>{au.playbackRate=parseFloat(sel.value);document.querySelectorAll('.listen audio').forEach(o=>{if(o!==au)o.pause();});});
+  sel.addEventListener('change',()=>{au.playbackRate=parseFloat(sel.value);});
+});
 if('speechSynthesis' in window){speechSynthesis.getVoices();window.addEventListener('beforeunload',()=>speechSynthesis.cancel());}
 // simple charts from tables: <table data-chart="bar|line">
 document.querySelectorAll('table[data-chart]').forEach(t=>{
@@ -161,5 +192,3 @@ document.querySelectorAll('table[data-chart]').forEach(t=>{
 });
 })();
 </script>
-</body>
-</html>

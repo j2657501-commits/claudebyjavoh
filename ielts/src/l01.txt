@@ -1,5 +1,6 @@
 ## Joining a Sports Centre | Section 1
 @CTX You will hear a telephone conversation between a receptionist at a sports centre and a man who wants to become a member.
+@VOICES Woman=f Man=m
 @S
 Woman: Good morning, Riverside Sports Centre. How can I help you?
 Man: Hello. I've just moved to the area and I'd like to ask about membership.
@@ -37,6 +38,7 @@ Members' discount in the café: ____ per cent | 10/ten
 
 ## Booking a Holiday Cottage | Section 1
 @CTX You will hear a woman phoning a holiday company to book a cottage.
+@VOICES Man=m Woman=f
 @S
 Man: Lakeland Holiday Cottages, Peter speaking.
 Woman: Hi, I saw a cottage on your website called Rose Cottage and I'd like to check a few things before I book.
@@ -72,6 +74,7 @@ Keys are kept by Mrs ____ | Dawson
 
 ## Lost Property at the Station | Section 1
 @CTX You will hear a man reporting a lost bag at a railway station office.
+@VOICES Woman=f Man=m
 @S
 Woman: Lost property office. Can I help you?
 Man: I hope so. I left a bag on a train this morning.
@@ -111,6 +114,7 @@ Items are kept for ____ months | 3/three
 
 ## A Tour of the City Museum | Section 2
 @CTX You will hear a guide welcoming visitors to a city museum.
+@VOICES Guide=f
 @S
 Guide: Good afternoon, everyone, and welcome to the City Museum. Before you start exploring, I'd like to tell you a little about the building and what you can see today.
 Guide: The museum opened in eighteen ninety-two. The building was originally a wool warehouse, which explains the large windows and high ceilings. It was converted into a museum after a local businessman left his private collection to the city.
@@ -135,6 +139,7 @@ Last entry to the galleries is at ____ | 5/five/5.00/5 pm/five o'clock
 
 ## Volunteering at the Summer Festival | Section 2
 @CTX You will hear an organiser giving information to people who want to work as volunteers at a town festival.
+@VOICES Organiser=f
 @S
 Organiser: Thanks for coming this evening. I'm Helen, and I coordinate the volunteers for the Greenfield Summer Festival.
 Organiser: As most of you know, the festival takes place in Victoria Park over three days, from Friday the eighth of July to Sunday the tenth. Last year we had around twelve thousand visitors, and this year we're expecting even more, so we need about eighty volunteers.
@@ -158,6 +163,7 @@ The volunteer office is in a tent | A by the main stage. | B at the entrance gat
 
 ## Changes to the Public Library | Section 2
 @CTX You will hear a radio announcement about changes at a town library.
+@VOICES Presenter=m Manager=f
 @S
 Presenter: And now some local news. Listeners who use Kingsbridge Library will be pleased to hear that it reopens next Monday after being closed for four months for rebuilding. The library's manager, Sarah Collins, is here to tell us what's new.
 Manager: Thank you. Yes, we're very excited. The biggest change is that the library is now on two floors instead of one. Downstairs is the children's library, which is twice as big as before, with a special corner for story time. The adult books have moved upstairs, and there's a lift for anybody who can't use the stairs.
