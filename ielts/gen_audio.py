@@ -39,12 +39,16 @@ def main():
             else:
                 vmap[sp] = MALE[mi % len(MALE)]; mi += 1
         speed = 0.95 if u["cat"] in ("Section 3", "Section 4") else 1.0
-        parts = [say(f"{u['cat']}. {u['ctx']}", NARRATOR, 0.95), gap(1.6)]
+        # exam-style frame: introduction, time to read the questions, the recording, closing line
+        parts = [say(f"{u['cat']}. {u['ctx']} First, you have some time to look at questions one to ten.",
+                     NARRATOR, 0.95), gap(20),
+                 say("Now listen carefully and answer questions one to ten.", NARRATOR, 0.95), gap(1.6)]
         prev = None
         for sp, tx in u["lines"]:
             parts += [gap(0.55 if sp != prev else 0.7), say(tx, vmap[sp], speed)]
             prev = sp
-        parts += [gap(1.5), say("That is the end of the section.", NARRATOR, 0.95), gap(0.5)]
+        parts += [gap(2.0), say(f"That is the end of {u['cat'].lower()}. You now have half a minute to check your answers.",
+                                NARRATOR, 0.95), gap(0.5)]
         audio = np.concatenate(parts)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
             sf.write(t.name, audio, SR)

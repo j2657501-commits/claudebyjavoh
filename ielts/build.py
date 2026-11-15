@@ -128,17 +128,52 @@ def bold_vocab(par, words):
     return par
 
 
+def load_extensions(errors):
+    """Extra paragraphs, words and questions per passage (src/x*.txt), keyed by passage title."""
+    ext = {}
+    for f in sorted(glob.glob(os.path.join(SRC, "x*.txt"))):
+        for block in parse_blocks(open(f, encoding="utf-8").read()):
+            title, sec, groups = parse_block(block)
+            if title in ext:
+                errors.append(f"extension '{title}' defined twice")
+            ext[title] = (sec, groups)
+    return ext
+
+
+def apply_extension(paras, vocab_lines, groups, ext, errors, where):
+    sec, new_groups = ext
+    # lines after "@INSERT n" are collected under that key: first item is n, the rest are paragraphs
+    extra = sec["INSERT"][1:] if sec.get("INSERT") else sec["body"]
+    ins = int(sec["INSERT"][0]) if sec.get("INSERT") else len(paras) - 1
+    if not 0 < ins <= len(paras):
+        errors.append(f"{where}: bad @INSERT {ins}")
+    shift = lambda letter: chr(ord(letter) + len(extra)) if ord(letter) - 65 >= ins else letter
+    fixed = []
+    for kind, head, items in groups:  # old questions keep pointing at the same paragraphs
+        if kind == "MATCH":
+            items = [it.rsplit("|", 1)[0] + "| " + shift(it.rsplit("|", 1)[1].strip()) for it in items]
+        elif kind == "HEAD":
+            items = [re.sub(r"^Paragraph ([A-Z])", lambda m: "Paragraph " + shift(m.group(1)), it) for it in items]
+        fixed.append((kind, head, items))
+    return paras[:ins] + extra + paras[ins:], vocab_lines + sec.get("V", []), fixed + new_groups
+
+
 def build_reading(errors):
     secs, toc, cats, total_q = [], [], {}, 0
     num = 0
+    exts = load_extensions(errors)
+    used = set()
     for f in sorted(glob.glob(os.path.join(SRC, "r*.txt"))):
         for block in parse_blocks(open(f, encoding="utf-8").read()):
             num += 1
             title, sec, groups = parse_block(block)
             name, _, cat = [x.strip() for x in title.partition("|")]
             where = f"Reading {num} ({name})"
-            paras = sec["body"]
-            vocab = [v.split("=", 1) for v in sec.get("V", [])]
+            paras, vlines = sec["body"], sec.get("V", [])
+            if name in exts:
+                used.add(name)
+                paras, vlines, groups = apply_extension(paras, vlines, groups, exts[name], errors, where)
+            vocab = [v.split("=", 1) for v in vlines]
             if len(vocab) < 6:
                 errors.append(f"{where}: only {len(vocab)} vocab items")
             pending = [v[0].strip().split(" (")[0] for v in vocab]
@@ -157,8 +192,8 @@ def build_reading(errors):
                         a = it.split("|")[-1].strip()
                         if not any(x.strip().lower() in full for x in a.split("/")):
                             errors.append(f"{where}: answer '{a}' not in text")
-            if nq < 8:
-                errors.append(f"{where}: only {nq} questions")
+            if nq < 8 or (name in exts and nq != 13):
+                errors.append(f"{where}: {nq} questions")
             words = sum(len(p.split()) for p in paras)
             vhtml = "".join(f"<li><b>{E(a.strip())}</b> — {E(b.strip())}</li>" for a, b in vocab)
             cats.setdefault(cat, []).append(num)
@@ -168,6 +203,9 @@ def build_reading(errors):
                 f"<span class='tag'>{E(cat)}</span> <span class='wc'>{words} words</span></h3>"
                 f"<details class='vocab' open><summary>Новые слова</summary><ul>{vhtml}</ul></details>"
                 f"<div class='text'>{''.join(ptxt)}</div><div class='qs'>{qhtml}</div></section>")
+    for t in exts:
+        if t not in used:
+            errors.append(f"extension '{t}' matches no passage")
     return num, total_q, "".join(toc), "\n".join(secs)
 
 
