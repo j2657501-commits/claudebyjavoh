@@ -261,8 +261,33 @@ def build_listening(errors):
     return len(units), "".join(toc), "\n".join(secs)
 
 
-def build_cards():
+def vocab_html(line):
+    items = [x.strip() for x in line.split(";") if x.strip()]
+    return "; ".join(f"<b>{E(a.strip())}</b> — {E(c.strip())}" for a, _, c in (x.partition("=") for x in items))
+
+
+def load_card_answers(errors):
+    ans = {}
+    for f in sorted(glob.glob(os.path.join(SRC, "a2*.txt"))):
+        cur = None
+        for ln in open(f, encoding="utf-8"):
+            ln = ln.strip()
+            if not ln:
+                continue
+            if ln.startswith("# "):
+                cur = ans.setdefault(int(ln[2:]), {"A": "", "V": "", "G": "", "3": []})
+            elif ln[:2] in ("A:", "V:", "G:"):
+                cur[ln[0]] = ln[2:].strip()
+            elif ln.startswith("3:"):
+                cur["3"].append(ln[2:].strip())
+            else:
+                errors.append(f"{os.path.basename(f)}: unexpected line: {ln[:40]}")
+    return ans
+
+
+def build_cards(errors):
     out, n = [], 0
+    answers = load_card_answers(errors)
     for ln in open(os.path.join(SRC, "cards.txt"), encoding="utf-8"):
         ln = ln.strip()
         if not ln:
@@ -272,11 +297,51 @@ def build_cards():
             continue
         n += 1
         topic, new, bullets, qs = [x.strip() for x in ln.split("|")]
+        qs = [q.strip() for q in qs.split(";")]
+        a = answers.get(n)
+        model = ""
+        if not a or not a["A"] or len(a["3"]) != len(qs):
+            errors.append(f"Speaking card {n}: missing model answer or Part 3 answers")
+        else:
+            wc = len(a["A"].split())
+            if not 140 <= wc <= 230:
+                errors.append(f"Speaking card {n}: model answer is {wc} words")
+            model = (f"<details class='model'><summary>Образец ответа (Band 8), разбор и ответы Part 3</summary>"
+                     f"<p>{E(a['A'])}</p><div class='note'><b>Лексика:</b> {vocab_html(a['V'])}</div>"
+                     f"<div class='note'><b>Разбор:</b> {E(a['G'])}</div><div class='note'><b>Part 3 — образцы ответов</b></div><ol class='p3'>"
+                     + "".join(f"<li><i>{E(q)}</i><p>{E(x)}</p></li>" for q, x in zip(qs, a["3"])) + "</ol></details>")
         out.append(
             f"<div class='cue'><b>{n}. {E(topic)}</b>{'<b class=new>NEW</b>' if new else ''}"
             "<div>You should say:</div><ul>" + "".join(f"<li>{E(b.strip())}</li>" for b in bullets.split(";")) +
-            "</ul><div><i>Part 3:</i></div><ul>" + "".join(f"<li>{E(q.strip())}</li>" for q in qs.split(";")) + "</ul></div>")
+            "</ul><div><i>Part 3:</i></div><ul>" + "".join(f"<li>{E(q)}</li>" for q in qs) + "</ul>" + model + "</div>")
     return "\n".join(out), n
+
+
+def build_part1(errors):
+    out, core_done = ["<h4>Обязательные темы (одна из них будет всегда)</h4>"], False
+    for block in parse_blocks(open(os.path.join(SRC, "p1.txt"), encoding="utf-8").read()):
+        lines = [l.strip() for l in block.split("\n") if l.strip()]
+        name, _, kind = [x.strip() for x in lines[0].partition("|")]
+        if kind != "core" and not core_done:
+            core_done = True
+            out.append("<h4>Сменные темы сезона</h4>")
+        qa, voc, note = [], "", ""
+        for l in lines[1:]:
+            if l.startswith("Q:"):
+                q, _, a = l[2:].partition("|")
+                if not a.strip():
+                    errors.append(f"Part 1 {name}: no answer for {q}")
+                qa.append((q.strip(), a.strip()))
+            elif l.startswith("V:"):
+                voc = l[2:].strip()
+            elif l.startswith("N:"):
+                note = l[2:].strip()
+        out.append(
+            f"<details class='model p1'><summary><span class='t'>{E(name)}.</span> " + " · ".join(E(q) for q, _ in qa) + "</summary>"
+            + "".join(f"<p><i>{E(q)}</i><br>{E(a)}</p>" for q, a in qa)
+            + (f"<div class='note'><b>Лексика:</b> {vocab_html(voc)}</div>" if voc else "")
+            + (f"<div class='note'><b>Разбор:</b> {E(note)}</div>" if note else "") + "</details>")
+    return "\n".join(out)
 
 
 def main():
@@ -289,7 +354,7 @@ def main():
     for k, v in {
         "{{READING}}": reading, "{{RTOC}}": rtoc, "{{NR}}": str(nr), "{{NQ}}": str(nq),
         "{{LISTENING}}": listening, "{{LTOC}}": ltoc, "{{NL}}": str(nl),
-        "{{WRITING}}": rd("writing.html"), "{{SPEAKING}}": rd("speaking.html").replace("{{CARDS}}", build_cards()[0]),
+        "{{WRITING}}": rd("writing.html"), "{{SPEAKING}}": rd("speaking.html").replace("{{CARDS}}", build_cards(errors)[0]).replace("{{PART1}}", build_part1(errors)),
     }.items():
         page = page.replace(k, v)
     head, body = page.split("<!--BODY-->")
