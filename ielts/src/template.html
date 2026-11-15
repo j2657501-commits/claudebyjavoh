@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IELTS: 4 Skills Pack</title>
+<style>
+:root{--bg:#f6f4ee;--card:#fff;--ink:#1d2433;--mute:#667085;--line:#e2ddd0;--acc:#b3261e;--acc2:#0b5cad;--ok:#1a7f4b;--bad:#c0362c;--soft:#fbf3e4}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1c2029;--ink:#e7e9ee;--mute:#98a2b3;--line:#2e3442;--acc:#ff8a80;--acc2:#7ab8ff;--ok:#5fd39a;--bad:#ff8d85;--soft:#252a35}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
+nav{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;gap:4px;padding:8px 12px;overflow-x:auto;font-family:system-ui,sans-serif}
+nav a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:600;font-size:15px;white-space:nowrap}
+nav a:hover{background:var(--soft)}
+main{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:34px;line-height:1.15;margin:28px 0 8px}
+h2{font-size:28px;margin:56px 0 12px;padding-top:12px;border-top:3px solid var(--acc);scroll-margin-top:60px}
+h3{font-size:21px;margin:0 0 10px;line-height:1.3}
+h4{font-size:18px;margin:22px 0 6px;font-family:system-ui,sans-serif}
+.lead{color:var(--mute);font-family:system-ui,sans-serif;font-size:15px}
+.unit,.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:18px 0;scroll-margin-top:60px}
+.tag,.wc{font:600 12px system-ui,sans-serif;background:var(--soft);border-radius:999px;padding:2px 9px;color:var(--mute);vertical-align:middle;white-space:nowrap}
+.toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px;font-family:system-ui,sans-serif;margin:10px 0 20px}
+.toc a{text-align:center;padding:6px 0;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--acc2);background:var(--card);font-size:14px}
+.vocab{background:var(--soft);border-radius:8px;padding:8px 14px;font-family:system-ui,sans-serif;font-size:14.5px}
+.vocab summary,.script summary,details.model summary{cursor:pointer;font-weight:700}
+.vocab ul{columns:2;margin:6px 0;padding-left:18px}
+@media(max-width:600px){.vocab ul{columns:1}body{font-size:16px}h1{font-size:27px}}
+.text p{margin:12px 0}
+.pl{font:700 13px system-ui,sans-serif;color:var(--acc);margin-right:4px}
+.vw{color:var(--acc2)}
+.qs{border-top:1px dashed var(--line);margin-top:14px;padding-top:6px;font-family:system-ui,sans-serif;font-size:15.5px}
+.instr{color:var(--mute);font-size:14px;margin:14px 0 6px}
+.q{margin:8px 0;padding:6px 8px;border-radius:8px}
+.q .n{display:inline-block;min-width:24px;height:24px;line-height:24px;text-align:center;border-radius:6px;background:var(--ink);color:var(--card);font-weight:700;font-size:13px;margin-right:4px}
+.q input,.q select,.player select{font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);max-width:100%}
+.q input{width:170px}
+.q .ans{display:none;color:var(--ok);font-weight:700;margin-left:6px}
+.q.show .ans,.q.bad .ans{display:inline}
+.q.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.q.bad{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.opts,.heads{margin:4px 0 0 30px;padding:0;list-style:none}
+.heads{background:var(--soft);padding:8px 14px;border-radius:8px;margin-left:0}
+.btns{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:600 14px system-ui,sans-serif;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.chk,button.play{background:var(--acc2);color:#fff;border-color:var(--acc2)}
+.score{font-weight:700;margin-left:6px}
+.player{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-family:system-ui,sans-serif;font-size:14px;margin:8px 0}
+.ctx{font-style:italic;color:var(--mute);margin:4px 0}
+.script p{margin:6px 0;font-size:15.5px}
+.script p.now{background:var(--soft)}
+table{border-collapse:collapse;margin:10px 0;font:14.5px system-ui,sans-serif;width:100%}
+th,td{border:1px solid var(--line);padding:5px 9px;text-align:left}
+th{background:var(--soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+.task{background:var(--soft);border-left:4px solid var(--acc);padding:10px 14px;border-radius:0 8px 8px 0;margin:10px 0}
+.src{font:13px system-ui,sans-serif;color:var(--mute)}
+ol.ql li,ul.ql li{margin:5px 0}
+.cue{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0;background:var(--card)}
+.cue b.new{font:700 11px system-ui,sans-serif;color:#fff;background:var(--acc);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.cue ul{margin:4px 0}
+.chart{margin:8px 0;max-width:100%}
+a{color:var(--acc2)}
+@media print{nav,.btns,.player{display:none}.unit,.card{break-inside:avoid-page;border:none;padding:0}body{background:#fff;font-size:12pt}.q .ans{display:none!important}}
+</style>
+</head>
+<body>
+<nav><a href="#top">IELTS Pack</a><a href="#reading">📖 Reading</a><a href="#listening">🎧 Listening</a><a href="#writing">✍️ Writing</a><a href="#speaking">🗣 Speaking</a></nav>
+<main id="top">
+<h1>IELTS: все 4 навыка в одном файле</h1>
+<p class="lead">Reading — {{NR}} текстов ({{NQ}} вопросов) с новыми словами и заданиями · Listening — {{NL}} секций с озвучкой · Writing — актуальные Task 1 и Task 2 · Speaking — актуальные Part 1, 2, 3 (сентябрь–декабрь 2026). Составлено 15 ноября 2026.</p>
+<div class="card lead">
+<b>Как пользоваться.</b> Reading: сначала просмотри «Новые слова», прочитай текст, ответь на вопросы и нажми «Проверить» — правильные ответы подсветятся зелёным, ошибки красным с верным ответом. Listening: нажми «▶ Слушать» (озвучка идёт голосом твоего браузера, нужен английский голос в системе; лучше всего работает в Chrome/Edge/Safari), отвечай во время прослушивания, транскрипт открывай только после проверки. Тексты Reading и Listening написаны специально для этого файла в формате IELTS: они короче экзаменационных (на экзамене 700–900 слов и 13–14 вопросов на текст), поэтому на один текст закладывай 8–10 минут.
+</div>
+
+<h2 id="reading">📖 Reading — {{NR}} passages</h2>
+<p class="lead">Типы заданий: True / False / Not Given, Yes / No / Not Given, Multiple choice, Sentence completion, Summary completion, Short answers, Matching information, Matching headings.</p>
+<div class="toc">{{RTOC}}</div>
+{{READING}}
+
+<h2 id="listening">🎧 Listening — {{NL}} sections</h2>
+<p class="lead">Формат как на экзамене: Section 1 — бытовой диалог, Section 2 — монолог на бытовую тему, Section 3 — учебное обсуждение, Section 4 — лекция. В каждой секции 10 вопросов. Пиши ответы во время прослушивания; на экзамене запись звучит один раз.</p>
+<div class="toc">{{LTOC}}</div>
+{{LISTENING}}
+
+<h2 id="writing">✍️ Writing</h2>
+{{WRITING}}
+
+<h2 id="speaking">🗣 Speaking</h2>
+{{SPEAKING}}
+</main>
+<script>
+(function(){
+const norm=s=>s.toLowerCase().replace(/[.,;:!?'"’%$£€]/g,'').replace(/\s+/g,' ').trim();
+const val=q=>{const c=q.querySelector('input,select');return c?c.value:''};
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const u=b.closest('.unit');if(!u)return;
+  const qs=[...u.querySelectorAll('.q')];
+  if(b.classList.contains('chk')){
+    let ok=0;
+    qs.forEach(q=>{
+      const good=q.dataset.a.split('/').map(norm);
+      const hit=good.includes(norm(val(q)));
+      q.classList.remove('ok','bad','show');q.classList.add(hit?'ok':'bad');if(hit)ok++;
+    });
+    u.querySelector('.score').textContent=ok+' / '+qs.length;
+  }else if(b.classList.contains('shw')){
+    qs.forEach(q=>q.classList.add('show'));
+  }else if(b.classList.contains('rst')){
+    qs.forEach(q=>{q.classList.remove('ok','bad','show');const c=q.querySelector('input,select');if(c)c.value='';});
+    u.querySelector('.score').textContent='';
+  }else if(b.classList.contains('play')){play(u);
+  }else if(b.classList.contains('stop')){stop();}
+});
+let token=0;
+function stop(){token++;if(window.speechSynthesis)speechSynthesis.cancel();document.querySelectorAll('.script p.now').forEach(p=>p.classList.remove('now'));document.querySelectorAll('.pstat').forEach(s=>s.textContent='');}
+function voices(){
+  const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+  const gb=all.filter(v=>/GB|AU/i.test(v.lang));
+  return gb.length>=2?gb:(all.length?all:[]);
+}
+function play(u){
+  if(!('speechSynthesis' in window)){alert('В этом браузере нет синтеза речи. Открой файл в Chrome, Edge или Safari.');return;}
+  stop();const my=++token;
+  const vs=voices();const stat=u.querySelector('.pstat');
+  if(!vs.length){stat.textContent='Английский голос не найден — проверь голоса в настройках системы.';}
+  const lines=[...u.querySelectorAll('.script p')];
+  const sp=[...new Set(lines.map(p=>p.dataset.sp))];
+  const rate=parseFloat(u.querySelector('.rate').value);
+  let i=0;
+  (function next(){
+    if(my!==token)return;
+    if(i>=lines.length){stat.textContent='Конец записи.';return;}
+    const p=lines[i++];const k=sp.indexOf(p.dataset.sp);
+    const ut=new SpeechSynthesisUtterance(p.querySelector('span').textContent);
+    ut.lang='en-GB';ut.rate=rate;
+    if(vs.length){ut.voice=vs[k%vs.length];}
+    ut.pitch=[1,0.75,1.25,0.9][k%4];
+    stat.textContent='Идёт запись… '+i+' / '+lines.length;
+    ut.onend=()=>setTimeout(next,350);ut.onerror=()=>{if(my===token)setTimeout(next,200)};
+    speechSynthesis.speak(ut);
+  })();
+}
+if('speechSynthesis' in window){speechSynthesis.getVoices();window.addEventListener('beforeunload',()=>speechSynthesis.cancel());}
+// simple charts from tables: <table data-chart="bar|line">
+document.querySelectorAll('table[data-chart]').forEach(t=>{
+  const rows=[...t.rows].map(r=>[...r.cells].map(c=>c.textContent.trim()));
+  const cats=rows[0].slice(1),ser=rows.slice(1).map(r=>({name:r[0],v:r.slice(1).map(x=>parseFloat(x.replace(/,/g,'')))}));
+  const W=640,H=300,L=46,B=34,T=14,R=10,max=Math.max(...ser.flatMap(s=>s.v))*1.1;
+  const col=['#0b5cad','#d9822b','#1a7f4b','#b3261e','#7a4fc2','#17a2a2','#8a8a2b','#c2478f'];
+  const y=v=>T+(H-T-B)*(1-v/max),gw=(W-L-R)/cats.length;
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" style="font:11px system-ui;fill:currentColor">`;
+  for(let g=0;g<=4;g++){const v=max*g/4.4;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" opacity=".15"/><text x="${L-5}" y="${y(v)+4}" text-anchor="end">${v>=100?Math.round(v):+v.toFixed(1)}</text>`;}
+  cats.forEach((c,i)=>{s+=`<text x="${L+gw*(i+.5)}" y="${H-B+15}" text-anchor="middle">${c}</text>`;});
+  if(t.dataset.chart==='line'){ser.forEach((se,k)=>{s+=`<polyline fill="none" stroke="${col[k%8]}" stroke-width="2.5" points="${se.v.map((v,i)=>(L+gw*(i+.5))+','+y(v)).join(' ')}"/>`;se.v.forEach((v,i)=>{s+=`<circle cx="${L+gw*(i+.5)}" cy="${y(v)}" r="3" fill="${col[k%8]}"/>`;});});}
+  else{const bw=gw*.8/ser.length;ser.forEach((se,k)=>se.v.forEach((v,i)=>{s+=`<rect x="${L+gw*i+gw*.1+bw*k}" y="${y(v)}" width="${bw-1}" height="${H-B-y(v)}" fill="${col[k%8]}"/>`;}));}
+  s+='</svg><div style="font:13px system-ui;display:flex;gap:12px;flex-wrap:wrap">'+ser.map((se,k)=>`<span><i style="display:inline-block;width:10px;height:10px;background:${col[k%8]};border-radius:2px"></i> ${se.name}</span>`).join('')+'</div>';
+  const d=document.createElement('div');d.innerHTML=s;t.closest('.tw').before(d);
+});
+})();
+</script>
+</body>
+</html>
