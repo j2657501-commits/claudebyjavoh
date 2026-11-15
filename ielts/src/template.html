@@ -148,11 +148,11 @@ if('speechSynthesis' in window){speechSynthesis.getVoices();window.addEventListe
 document.querySelectorAll('table[data-chart]').forEach(t=>{
   const rows=[...t.rows].map(r=>[...r.cells].map(c=>c.textContent.trim()));
   const cats=rows[0].slice(1),ser=rows.slice(1).map(r=>({name:r[0],v:r.slice(1).map(x=>parseFloat(x.replace(/,/g,'')))}));
-  const W=640,H=300,L=46,B=34,T=14,R=10,max=Math.max(...ser.flatMap(s=>s.v))*1.1;
+  const W=640,H=300,L=46,B=34,T=14,R=10,dm=Math.max(...ser.flatMap(s=>s.v)),pw=Math.pow(10,Math.floor(Math.log10(dm/4))),fr=dm/4/pw,step=(fr<1.5?1:fr<3?2:fr<7?5:10)*pw,max=Math.ceil(dm/step)*step;
   const col=['#0b5cad','#d9822b','#1a7f4b','#b3261e','#7a4fc2','#17a2a2','#8a8a2b','#c2478f'];
   const y=v=>T+(H-T-B)*(1-v/max),gw=(W-L-R)/cats.length;
   let s=`<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" style="font:11px system-ui;fill:currentColor">`;
-  for(let g=0;g<=4;g++){const v=max*g/4.4;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" opacity=".15"/><text x="${L-5}" y="${y(v)+4}" text-anchor="end">${v>=100?Math.round(v):+v.toFixed(1)}</text>`;}
+  for(let v=0;v<=max+1e-9;v+=step){s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" opacity=".15"/><text x="${L-5}" y="${y(v)+4}" text-anchor="end">${+v.toFixed(1)}</text>`;}
   cats.forEach((c,i)=>{s+=`<text x="${L+gw*(i+.5)}" y="${H-B+15}" text-anchor="middle">${c}</text>`;});
   if(t.dataset.chart==='line'){ser.forEach((se,k)=>{s+=`<polyline fill="none" stroke="${col[k%8]}" stroke-width="2.5" points="${se.v.map((v,i)=>(L+gw*(i+.5))+','+y(v)).join(' ')}"/>`;se.v.forEach((v,i)=>{s+=`<circle cx="${L+gw*(i+.5)}" cy="${y(v)}" r="3" fill="${col[k%8]}"/>`;});});}
   else{const bw=gw*.8/ser.length;ser.forEach((se,k)=>se.v.forEach((v,i)=>{s+=`<rect x="${L+gw*i+gw*.1+bw*k}" y="${y(v)}" width="${bw-1}" height="${H-B-y(v)}" fill="${col[k%8]}"/>`;}));}

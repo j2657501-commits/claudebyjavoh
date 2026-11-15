@@ -121,7 +121,7 @@ Guide: If you're hungry, the café is in the basement and it serves hot food unt
 Guide: We have two free talks today. At two o'clock there's a talk about Roman coins in the Local History gallery, and at three thirty a member of staff will show how old clocks are repaired. For the second one you need a ticket from the information desk, because there are only twenty places.
 Guide: Finally, the museum closes at five thirty, and the last entry to the galleries is at five. Lockers for bags are next to the stairs. You'll need a one pound coin, which you get back afterwards. Enjoy your visit.
 @Q LMCQ
-The museum building was originally | A a private house. | B a warehouse. | C a town hall. | A
+The museum building was originally | A a private house. | B a warehouse. | C a town hall. | B
 The most popular exhibit in the Local History gallery is | A a model of the harbour. | B a collection of Roman coins. | C an old fishing boat. | A
 Photography is not permitted | A anywhere in the museum. | B in the temporary exhibition. | C in the art gallery. | C
 @Q LGAP

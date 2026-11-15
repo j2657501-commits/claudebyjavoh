@@ -221,7 +221,7 @@ maintenance = техническое обслуживание
 The word 'robot' was first used in a work for the theatre. | T
 Unimate was designed to look like a human being. | F
 Early industrial robots could detect people who came near them. | F
-Cobots are more expensive than traditional industrial robots. | F
+Cobots are too expensive for small companies to buy. | F
 @Q MCQ
 Why were robots well suited to welding and painting? | A These tasks require creativity. | B These tasks are repeated identically many times. | C These tasks were badly paid. | D These tasks are done outdoors. | B
 What point is made about South Korea and Germany? | A They have banned cobots. | B They have many robots but not especially high unemployment. | C They have lost most of their factories. | D They produce the cheapest robots. | B

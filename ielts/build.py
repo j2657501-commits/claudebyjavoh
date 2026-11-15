@@ -204,6 +204,24 @@ def build_listening(errors):
     return num, "".join(toc), "\n".join(secs)
 
 
+def build_cards():
+    out, n = [], 0
+    for ln in open(os.path.join(SRC, "cards.txt"), encoding="utf-8"):
+        ln = ln.strip()
+        if not ln:
+            continue
+        if "|" not in ln:
+            out.append(f"<h4>{E(ln)}</h4>")
+            continue
+        n += 1
+        topic, new, bullets, qs = [x.strip() for x in ln.split("|")]
+        out.append(
+            f"<div class='cue'><b>{n}. {E(topic)}</b>{'<b class=new>NEW</b>' if new else ''}"
+            "<div>You should say:</div><ul>" + "".join(f"<li>{E(b.strip())}</li>" for b in bullets.split(";")) +
+            "</ul><div><i>Part 3:</i></div><ul>" + "".join(f"<li>{E(q.strip())}</li>" for q in qs.split(";")) + "</ul></div>")
+    return "\n".join(out), n
+
+
 def main():
     errors = []
     nr, nq, rtoc, reading = build_reading(errors)
@@ -213,7 +231,7 @@ def main():
     for k, v in {
         "{{READING}}": reading, "{{RTOC}}": rtoc, "{{NR}}": str(nr), "{{NQ}}": str(nq),
         "{{LISTENING}}": listening, "{{LTOC}}": ltoc, "{{NL}}": str(nl),
-        "{{WRITING}}": rd("writing.html"), "{{SPEAKING}}": rd("speaking.html"),
+        "{{WRITING}}": rd("writing.html"), "{{SPEAKING}}": rd("speaking.html").replace("{{CARDS}}", build_cards()[0]),
     }.items():
         page = page.replace(k, v)
     open(OUT, "w", encoding="utf-8").write(page)
