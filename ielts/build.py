@@ -386,7 +386,7 @@ def build_writing(errors):
         return (f"<details class='model'><summary>Образец (Band 8), {words} слов — план, лексика, разбор</summary>"
                 f"<div class='note'><b>План:</b> {E(md['P'])}</div><div class='essay'>{paras}</div>"
                 f"<div class='note'><b>Лексика:</b> {vocab_html(md['V'])}</div>"
-                f"<div class='note'><b>Разбор:</b> {E(md['N'])}</div></details>")
+                f"<div class='note'><b>Разбор:</b> {E(re.sub(r'^\\d+ слов[а]?\\. ', '', md['N']))}</div></details>")
 
     page = re.sub(r"\{\{E:([A-Za-z0-9]+)\}\}", render, page)
     for k in models:
