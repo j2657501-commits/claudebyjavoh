@@ -344,6 +344,57 @@ def build_part1(errors):
     return "\n".join(out)
 
 
+def load_models(errors):
+    models = {}
+    for f in sorted(glob.glob(os.path.join(SRC, "e*.txt"))):
+        cur = None
+        for ln in open(f, encoding="utf-8"):
+            ln = ln.rstrip("\n").strip()
+            if not ln:
+                continue
+            if ln.startswith("# "):
+                cur = models.setdefault(ln[2:].strip(), {"P": "", "E": [], "V": "", "N": ""})
+            elif ln[:2] in ("P:", "E:", "V:", "N:"):
+                if ln[0] == "E":
+                    cur["E"].append(ln[2:].strip())
+                else:
+                    cur[ln[0]] = ln[2:].strip()
+            else:
+                errors.append(f"{os.path.basename(f)}: unexpected line: {ln[:40]}")
+    return models
+
+
+def build_writing(errors):
+    page = open(os.path.join(SRC, "writing.html"), encoding="utf-8").read()
+    models = load_models(errors)
+    used = set()
+
+    def render(m):
+        key = m.group(1)
+        md = models.get(key)
+        if not md or not md["E"]:
+            errors.append(f"Writing: no model answer for {key}")
+            return ""
+        used.add(key)
+        body = [p for p in md["E"]]
+        letter = key.startswith("g")
+        words = sum(len(p.split()) for p in (body[1:-2] if letter else body))
+        lo, hi = (150, 230) if (letter or key.startswith("t")) else (250, 340)
+        if not lo <= words <= hi:
+            errors.append(f"Writing {key}: {words} words")
+        paras = "".join(f"<p>{E(p)}</p>" for p in body)
+        return (f"<details class='model'><summary>Образец (Band 8), {words} слов — план, лексика, разбор</summary>"
+                f"<div class='note'><b>План:</b> {E(md['P'])}</div><div class='essay'>{paras}</div>"
+                f"<div class='note'><b>Лексика:</b> {vocab_html(md['V'])}</div>"
+                f"<div class='note'><b>Разбор:</b> {E(md['N'])}</div></details>")
+
+    page = re.sub(r"\{\{E:([A-Za-z0-9]+)\}\}", render, page)
+    for k in models:
+        if k not in used:
+            errors.append(f"Writing model {k} is not used on the page")
+    return page
+
+
 def main():
     errors = []
     os.makedirs(os.path.join(ROOT, "web"), exist_ok=True)
@@ -354,7 +405,7 @@ def main():
     for k, v in {
         "{{READING}}": reading, "{{RTOC}}": rtoc, "{{NR}}": str(nr), "{{NQ}}": str(nq),
         "{{LISTENING}}": listening, "{{LTOC}}": ltoc, "{{NL}}": str(nl),
-        "{{WRITING}}": rd("writing.html"), "{{SPEAKING}}": rd("speaking.html").replace("{{CARDS}}", build_cards(errors)[0]).replace("{{PART1}}", build_part1(errors)),
+        "{{WRITING}}": build_writing(errors), "{{SPEAKING}}": rd("speaking.html").replace("{{CARDS}}", build_cards(errors)[0]).replace("{{PART1}}", build_part1(errors)),
     }.items():
         page = page.replace(k, v)
     head, body = page.split("<!--BODY-->")
