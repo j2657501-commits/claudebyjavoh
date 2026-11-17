@@ -106,18 +106,17 @@ const c = (text, opts = {}) => new Paragraph({
   children: [new TextRun({ text, font: FONT, size: opts.size || SZ, bold: !!opts.bold })],
 });
 const title = [
-  c('МИНИСТЕРСТВО ЮСТИЦИИ РЕСПУБЛИКИ УЗБЕКИСТАН', { bold: true }),
   c('ТАШКЕНТСКИЙ ГОСУДАРСТВЕННЫЙ ЮРИДИЧЕСКИЙ УНИВЕРСИТЕТ', { bold: true }),
-  c('[Кафедра]', { before: 240 }),
-  c('ВТОРАЯ ПРОМЕЖУТОЧНАЯ КОНТРОЛЬНАЯ РАБОТА (ПК-2)', { bold: true, before: 1800 }),
-  c('по дисциплине «Международное право»', { after: 360 }),
+  c('ВТОРАЯ ПРОМЕЖУТОЧНАЯ КОНТРОЛЬНАЯ РАБОТА ПК-2', { bold: true, before: 2400 }),
+  c('по модулю «Право международных договоров»', { after: 360 }),
   c('на тему:'),
   c('КРИЗИС МЕЖДУНАРОДНОГО ПРАВОПОРЯДКА, ОСНОВАННОГО НА ПРАВИЛАХ: УТРАЧИВАЕТ ЛИ МЕЖДУНАРОДНОЕ ПРАВО СВОЮ ЮРИДИЧЕСКУЮ СИЛУ И АВТОРИТЕТ В УСЛОВИЯХ ГЕОПОЛИТИЧЕСКОГО СОПЕРНИЧЕСТВА ВЕЛИКИХ ДЕРЖАВ?', { bold: true, after: 1400 }),
-  c('Выполнил(а): студент(ка) [курс, группа]', { align: AlignmentType.RIGHT }),
-  c('[Фамилия Имя Отчество]', { align: AlignmentType.RIGHT }),
-  c('Проверил(а): [должность, учёная степень]', { align: AlignmentType.RIGHT, before: 240 }),
-  c('[Фамилия И.О. преподавателя]', { align: AlignmentType.RIGHT }),
-  c('Ташкент – 2026', { before: 2000 }),
+  c('Выполнил: студент 3 курса Б потока', { align: AlignmentType.RIGHT }),
+  c('Абдурахмонов Темур Фахриддин угли', { align: AlignmentType.RIGHT }),
+  c('Проверил: учитель по модулю', { align: AlignmentType.RIGHT, before: 240 }),
+  c('«Право международных договоров»', { align: AlignmentType.RIGHT }),
+  c('Толибов Азизбек Толибович', { align: AlignmentType.RIGHT }),
+  c('Ташкент – 2026', { before: 1800 }),
 ];
 
 // Table of contents (page numbers filled in on the second pass)
@@ -142,7 +141,7 @@ for (const e of toc) {
 }
 
 const doc = new Document({
-  creator: 'Student',
+  creator: 'Абдурахмонов Т.Ф.',
   title: 'ПК-2. Кризис международного правопорядка, основанного на правилах',
   styles: {
     default: { document: { run: { font: FONT, size: SZ } } },
