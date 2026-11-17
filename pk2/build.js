@@ -25,6 +25,7 @@ let fnId = 0;
 const toc = [];
 const body = [];
 let bibNo = 0;
+let inBib = false;
 
 function runs(text) {
   const parts = text.split(/(\[\[[\s\S]*?\]\])/);
@@ -56,16 +57,17 @@ for (const f of files) {
     if (!line.trim()) continue;
     if (line.startsWith('# ')) {
       const t = line.slice(2);
+      inBib = t.startsWith('СПИСОК');
       toc.push({ level: 1, text: t });
       body.push(new Paragraph({
-        heading: HeadingLevel.HEADING_1, pageBreakBefore: true,
+        heading: HeadingLevel.HEADING_1,
         alignment: AlignmentType.CENTER,
         spacing: { line: LINE, before: 0, after: 240 },
-        children: [new TextRun({ text: t, font: FONT, size: SZ, bold: true })],
+        children: [new PageBreak(), new TextRun({ text: t, font: FONT, size: SZ, bold: true })],
       }));
     } else if (line.startsWith('## ')) {
       const t = line.slice(3);
-      toc.push({ level: 2, text: t });
+      if (!inBib) toc.push({ level: 2, text: t });
       body.push(new Paragraph({
         heading: HeadingLevel.HEADING_2,
         alignment: AlignmentType.JUSTIFIED, keepNext: true,
@@ -121,9 +123,9 @@ const title = [
 
 // Table of contents (page numbers filled in on the second pass)
 const tocParas = [new Paragraph({
-  pageBreakBefore: true, alignment: AlignmentType.CENTER,
+  alignment: AlignmentType.CENTER,
   spacing: { line: LINE, after: 240 },
-  children: [new TextRun({ text: 'ОГЛАВЛЕНИЕ', font: FONT, size: SZ, bold: true })],
+  children: [new PageBreak(), new TextRun({ text: 'ОГЛАВЛЕНИЕ', font: FONT, size: SZ, bold: true })],
 })];
 const tabPos = 11906 - 3 * CM - 1.5 * CM - 10; // text width in twips (A4 width minus margins)
 for (const e of toc) {
