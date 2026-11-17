@@ -199,10 +199,12 @@ def build_reading(errors):
             cats.setdefault(cat, []).append(num)
             toc.append(f"<a href='#r{num}' title='{E(name)}'>{num}</a>")
             secs.append(
-                f"<section class='unit' id='r{num}'><h3>Passage {num}. {E(name)} "
-                f"<span class='tag'>{E(cat)}</span> <span class='wc'>{words} words</span></h3>"
-                f"<details class='vocab' open><summary>Новые слова</summary><ul>{vhtml}</ul></details>"
-                f"<div class='text'>{''.join(ptxt)}</div><div class='qs'>{qhtml}</div></section>")
+                f"<section class='unit reading' id='r{num}' data-k='r{num}' data-n='{num}' data-title=\"{E(name)}\" "
+                f"data-cat=\"{E(cat)}\" data-words='{words}' data-vocab=\"{E(' | '.join(a.strip() for a, _ in vocab))}\">"
+                f"<div class='panes'><div class='pane pane-text'>"
+                f"<details class='vocab' open><summary>Новые слова ({len(vocab)})</summary><ul>{vhtml}</ul></details>"
+                f"<div class='text'>{''.join(ptxt)}</div></div>"
+                f"<div class='pane pane-q'><div class='qs'>{qhtml}</div></div></div></section>")
     for t in exts:
         if t not in used:
             errors.append(f"extension '{t}' matches no passage")
@@ -247,8 +249,8 @@ def build_listening(errors):
             errors.append(f"{where}: missing {audio}")
         toc.append(f"<a href='#l{num}' title='{E(name)}'>{num}</a>")
         secs.append(
-            f"<section class='unit listen' id='l{num}'><h3>Listening {num}. {E(name)} "
-            f"<span class='tag'>{E(cat)}</span></h3><p class='ctx'>{E(u['ctx'])}</p>"
+            f"<section class='unit listen' id='l{num}' data-k='l{num}' data-n='{num}' data-title=\"{E(name)}\" "
+            f"data-cat=\"{E(cat)}\"><p class='ctx'>{E(u['ctx'])}</p>"
             f"<div class='player'><audio controls preload='none' src='{audio}'></audio>"
             f"<label>Скорость <select class='rate'><option value='0.85'>0.85×</option>"
             f"<option value='1' selected>1×</option><option value='1.15'>1.15×</option></select></label>"
@@ -311,14 +313,16 @@ def build_cards(errors):
                      f"<div class='note'><b>Разбор:</b> {E(a['G'])}</div><div class='note'><b>Part 3 — образцы ответов</b></div><ol class='p3'>"
                      + "".join(f"<li><i>{E(q)}</i><p>{E(x)}</p></li>" for q, x in zip(qs, a["3"])) + "</ol></details>")
         out.append(
-            f"<div class='cue'><b>{n}. {E(topic)}</b>{'<b class=new>NEW</b>' if new else ''}"
+            f"<div class='cue' id='c{n}' data-k='c{n}' data-title=\"{E(topic)}\"><b>{n}. {E(topic)}</b>{'<b class=new>NEW</b>' if new else ''}"
             "<div>You should say:</div><ul>" + "".join(f"<li>{E(b.strip())}</li>" for b in bullets.split(";")) +
-            "</ul><div><i>Part 3:</i></div><ul>" + "".join(f"<li>{E(q)}</li>" for q in qs) + "</ul>" + model + "</div>")
+            "</ul><div><i>Part 3:</i></div><ul>" + "".join(f"<li>{E(q)}</li>" for q in qs) + "</ul>" + model
+            + f"<button class='done' data-k='c{n}'>Отметить как сделано</button></div>")
     return "\n".join(out), n
 
 
 def build_part1(errors):
     out, core_done = ["<h4>Обязательные темы (одна из них будет всегда)</h4>"], False
+    pn = 0
     for block in parse_blocks(open(os.path.join(SRC, "p1.txt"), encoding="utf-8").read()):
         lines = [l.strip() for l in block.split("\n") if l.strip()]
         name, _, kind = [x.strip() for x in lines[0].partition("|")]
@@ -336,11 +340,13 @@ def build_part1(errors):
                 voc = l[2:].strip()
             elif l.startswith("N:"):
                 note = l[2:].strip()
+        pn += 1
         out.append(
-            f"<details class='model p1'><summary><span class='t'>{E(name)}.</span> " + " · ".join(E(q) for q, _ in qa) + "</summary>"
+            f"<details class='model p1' id='p{pn}' data-k='p{pn}' data-title=\"Part 1: {E(name)}\"><summary><span class='t'>{E(name)}.</span> " + " · ".join(E(q) for q, _ in qa) + "</summary>"
             + "".join(f"<p><i>{E(q)}</i><br>{E(a)}</p>" for q, a in qa)
             + (f"<div class='note'><b>Лексика:</b> {vocab_html(voc)}</div>" if voc else "")
-            + (f"<div class='note'><b>Разбор:</b> {E(note)}</div>" if note else "") + "</details>")
+            + (f"<div class='note'><b>Разбор:</b> {E(note)}</div>" if note else "")
+            + f"<button class='done' data-k='p{pn}'>Отметить как сделано</button></details>")
     return "\n".join(out)
 
 
@@ -383,7 +389,8 @@ def build_writing(errors):
         if not lo <= words <= hi:
             errors.append(f"Writing {key}: {words} words")
         paras = "".join(f"<p>{E(p)}</p>" for p in body)
-        return (f"<details class='model'><summary>Образец (Band 8), {words} слов — план, лексика, разбор</summary>"
+        return (f"<button class='done' data-k='w-{key}'>Отметить как сделано</button>"
+                f"<details class='model'><summary>Образец (Band 8), {words} слов — план, лексика, разбор</summary>"
                 f"<div class='note'><b>План:</b> {E(md['P'])}</div><div class='essay'>{paras}</div>"
                 f"<div class='note'><b>Лексика:</b> {vocab_html(md['V'])}</div>"
                 f"<div class='note'><b>Разбор:</b> {E(re.sub(r'^\d+ слов[а]?\. ', '', md['N']))}</div></details>")
