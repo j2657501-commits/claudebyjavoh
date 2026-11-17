@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Звук, который видно</title>
+<style>html,body{margin:0;height:100%;background:#05050a;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from "three";
+import { EffectComposer } from "./jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "./jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "./jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "./jsm/postprocessing/OutputPass.js";
+
+const DUR = 18; window.__duration = DUR;
+const BPM = 120, B = 60 / BPM, S16 = B / 4;
+const rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const sstep = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+const lerp = (a, b, u) => a + (b - a) * u;
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+
+// ================= SCORE: one list drives sound and picture =================
+const DROP = 8.0, BACK0 = 16.0, SNAP = 17.0;
+const PROG = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]; // Am F C G (midi)
+const ROOT = [45, 41, 48, 43];
+const kicks = [], claps = [], hats = [], bass = [], lead = [], pads = [], fx = [];
+const bar = t => Math.floor(t / (4 * B));
+// intro + build kicks
+for (let t = 0; t < 7.5 - 1e-6; t += B) kicks.push(t);
+// drop kicks
+for (let t = DROP; t < BACK0 - 1e-6; t += B) kicks.push(t);
+kicks.push(SNAP);
+// claps on 2 & 4 (build + drop) + snare roll 7.0–7.85
+for (let t = 4 + B; t < 7.0; t += 2 * B) claps.push([t, 1]);
+for (let t = DROP + B; t < BACK0 - 0.3; t += 2 * B) claps.push([t, 1]);
+for (let k = 0; k < 8; k++) claps.push([7.0 + k * S16, 0.45 + k * 0.06]);
+for (let k = 0; k < 7; k++) claps.push([7.5 + k * S16 / 2 * 1.0, 0.7 + k * 0.04]);
+for (let k = 0; k < 4; k++) claps.push([15.5 + k * S16, 0.6 + k * 0.1]);
+// hats
+for (let t = 2 + B / 2; t < 4; t += B) hats.push([t, 0]);
+for (let t = 4; t < 7.85; t += S16) hats.push([t, (Math.round(t / S16) % 4 === 2) ? 1 : 0, Math.round(t / S16) % 2 ? 0.55 : 1]);
+for (let t = DROP; t < BACK0 - 0.3; t += S16) { const k = Math.round((t - DROP) / S16) % 4; hats.push([t, k === 2 ? 1 : 0, k % 2 ? 0.6 : 0.9]); }
+// bass
+for (let b0 = 0; b0 < 2; b0++) for (let h = 0; h < 2; h++) bass.push([b0 * 2 + h * 1, ROOT[b0 % 4], 0.95, 0.8]);
+for (let t = 4; t < 7.5; t += B / 2) bass.push([t, ROOT[bar(t) % 4], B / 2 * 0.85, 0.9]);
+for (let t = DROP; t < BACK0; t += B / 2) { const off = Math.round((t - DROP) / (B / 2)) % 2; bass.push([t, ROOT[bar(t) % 4] + (off ? 12 : 0), B / 2 * 0.8, off ? 1.0 : 0.6]); }
+// pads
+for (let b0 = 0; b0 < 4; b0++) pads.push([b0 * 2, PROG[b0 % 4], 2.0, b0 < 2 ? 0.8 : 0.6]);
+for (let b0 = 4; b0 < 8; b0++) pads.push([b0 * 2, PROG[b0 % 4], 2.0, 0.55]);
+pads.push([BACK0, [57, 60, 64, 69], 1.0, 0.7], [SNAP, [45, 57, 60, 64, 69, 72], 1.0, 1.0]);
+// lead: arpeggio in the build, hook in the drop
+for (let t = 4; t < 7.0; t += (t < 6 ? B / 2 : S16)) { const ch = PROG[bar(t) % 4], k = Math.round((t - 4) / S16); lead.push([t, ch[k % 3] + 12 * (1 + ((k >> 2) % 2)), t < 6 ? 0.22 : 0.12, 0.55]); }
+const HOOK = [[76, null, 72, 76, 81, null, 79, 76], [77, null, 72, 77, 81, null, 79, 77], [76, null, 72, 76, 84, null, 83, 79], [74, null, 71, 74, 79, null, 76, 74]];
+for (let b0 = 0; b0 < 4; b0++) HOOK[b0].forEach((m, k) => { if (m != null) lead.push([DROP + b0 * 2 + k * B, m, B * 0.9, 0.85]); });
+lead.push([SNAP, 81, 1.0, 1.0], [SNAP, 76, 1.0, 0.7]);
+fx.push(["riser", 5.85, 2.0], ["impact", DROP], ["reverse", BACK0, SNAP - BACK0], ["impact", SNAP], ["sub", 0.0]);
+
+// ================= AUDIO (offline, deterministic) =================
+async function renderAudio() {
+  const SR = 48000, ctx = new OfflineAudioContext(2, Math.ceil((DUR + 0.2) * SR), SR), R = rng(11);
+  const noise = (dur, seed) => { const r = rng(seed), b = ctx.createBuffer(1, Math.ceil(dur * SR), SR), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; return b; };
+  const NB = noise(2.5, 5);
+  const master = ctx.createGain(); master.gain.value = 0.7;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.12;
+  master.connect(comp); comp.connect(ctx.destination);
+  // music bus with kick sidechain
+  const music = ctx.createGain(); music.connect(master);
+  const duck = music.gain; duck.setValueAtTime(1, 0);
+  for (const k of kicks) { duck.setValueAtTime(1, k); duck.linearRampToValueAtTime(0.45, k + 0.01); duck.setTargetAtTime(1, k + 0.03, 0.09); }
+  // reverb
+  const rev = ctx.createConvolver(); { const len = 2.4 * SR, ir = ctx.createBuffer(2, len, SR), r = rng(3); for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (r() * 2 - 1) * Math.pow(1 - i / len, 3.2); } rev.buffer = ir; }
+  const revG = ctx.createGain(); revG.gain.value = 0.32; rev.connect(revG); revG.connect(master);
+  const delay = ctx.createDelay(1); delay.delayTime.value = B * 0.75; const fb = ctx.createGain(); fb.gain.value = 0.32; const dl = ctx.createGain(); dl.gain.value = 0.25; delay.connect(fb); fb.connect(delay); delay.connect(dl); dl.connect(music);
+  const env = (g, t, a, p, d) => { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(p, t + a); g.gain.setTargetAtTime(0, t + a, d / 4); };
+  const pan = (x) => { const p = ctx.createStereoPanner(); p.pan.value = x; return p; };
+  const nsrc = (t, dur, off) => { const s = ctx.createBufferSource(); s.buffer = NB; s.start(t, off || 0, dur); return s; };
+  const bq = (type, f, Q) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; if (Q) b.Q.value = Q; return b; };
+  // kick
+  for (const t of kicks) {
+    const big = t === SNAP ? 1.3 : 1;
+    const o = ctx.createOscillator(); o.frequency.setValueAtTime(170, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.11); const g = ctx.createGain(); env(g, t, 0.002, 1.0 * big, 0.42); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.6);
+    const c = nsrc(t, 0.01, (t * 7) % 2), cg = ctx.createGain(); env(cg, t, 0.0005, 0.35, 0.01); c.connect(bq("highpass", 2500)).connect(cg); cg.connect(master);
+  }
+  // clap
+  for (const [t, v] of claps) {
+    for (let k = 0; k < 3; k++) { const tt = t + k * 0.011, s = nsrc(tt, 0.25, (tt * 13) % 2), g = ctx.createGain(); env(g, tt, 0.001, 0.55 * v, k === 2 ? 0.2 : 0.02); s.connect(bq("bandpass", 1250, 0.9)).connect(g); g.connect(music); g.connect(rev); }
+    const o = ctx.createOscillator(); o.frequency.value = 190; const g = ctx.createGain(); env(g, t, 0.001, 0.25 * v, 0.07); o.connect(g); g.connect(music); o.start(t); o.stop(t + 0.2);
+  }
+  // hats
+  for (const [t, open, v = 1] of hats) { const s = nsrc(t, open ? 0.25 : 0.06, (t * 17) % 2), g = ctx.createGain(); env(g, t, 0.0008, (open ? 0.22 : 0.16) * v, open ? 0.16 : 0.03); s.connect(bq("highpass", 7500)).connect(pan(open ? -0.25 : 0.3)).connect(g); g.connect(music); }
+  // bass
+  for (const [t, m, d, v] of bass) {
+    const f = mtof(m), lp = bq("lowpass", 300, 4), g = ctx.createGain();
+    lp.frequency.setValueAtTime(300, t); lp.frequency.linearRampToValueAtTime(t >= DROP ? 1300 : 800, t + 0.02); lp.frequency.setTargetAtTime(260, t + 0.03, 0.08);
+    [0.997, 1.003].forEach(dt => { const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f * dt; o.connect(lp); o.start(t); o.stop(t + d + 0.1); });
+    const sub = ctx.createOscillator(); sub.frequency.value = f / (m > 50 ? 2 : 1); const sg = ctx.createGain(); sg.gain.value = 0.6; sub.connect(sg); sg.connect(g); sub.start(t); sub.stop(t + d + 0.1);
+    lp.connect(g); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.32 * v, t + 0.006); g.gain.setValueAtTime(0.32 * v, t + d * 0.8); g.gain.linearRampToValueAtTime(0, t + d); g.connect(music);
+  }
+  // pads
+  for (const [t, ch, d, v] of pads) for (const m of ch) for (const dt of [0.994, 1.006]) {
+    const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(m) * dt; const lp = bq("lowpass", 1400, 0.6), g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.022 * v, t + Math.min(0.4, d * 0.3)); g.gain.setValueAtTime(0.022 * v, t + d - 0.1); g.gain.linearRampToValueAtTime(0, t + d + (t === SNAP ? 0.9 : 0.15));
+    o.connect(lp).connect(pan(dt < 1 ? -0.4 : 0.4)).connect(g); g.connect(music); g.connect(rev); o.start(t); o.stop(t + d + 1);
+  }
+  // lead
+  for (const [t, m, d, v] of lead) {
+    const f = mtof(m), lp = bq("lowpass", 4500, 3), g = ctx.createGain(), p = pan(((m * 7) % 11) / 11 - 0.5);
+    lp.frequency.setValueAtTime(5200, t); lp.frequency.setTargetAtTime(1300, t + 0.01, 0.12);
+    [["sawtooth", 1], ["square", 1.004]].forEach(([ty, dt]) => { const o = ctx.createOscillator(); o.type = ty; o.frequency.value = f * dt; o.connect(lp); o.start(t); o.stop(t + d + 0.4); });
+    env(g, t, 0.003, 0.12 * v, Math.max(0.12, d * 0.9)); lp.connect(p).connect(g); g.connect(music); g.connect(delay); g.connect(rev);
+  }
+  // fx
+  for (const [type, t, d] of fx) {
+    if (type === "riser") { const s = nsrc(t, d, 0.3), f = bq("bandpass", 300, 1.2), g = ctx.createGain(); f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(7000, t + d); g.gain.setValueAtTime(0.001, t); g.gain.exponentialRampToValueAtTime(0.35, t + d - 0.02); g.gain.linearRampToValueAtTime(0, t + d); s.connect(f).connect(g); g.connect(master);
+      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(880, t + d); const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.001, t); g2.gain.exponentialRampToValueAtTime(0.06, t + d - 0.02); g2.gain.linearRampToValueAtTime(0, t + d); o.connect(bq("lowpass", 2000)).connect(g2); g2.connect(master); o.start(t); o.stop(t + d); }
+    if (type === "impact") { const o = ctx.createOscillator(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(28, t + 1.4); const g = ctx.createGain(); env(g, t, 0.003, 0.9, 1.6); o.connect(g); g.connect(master); o.start(t); o.stop(t + 2.2);
+      const s = nsrc(t, 1.4, 0.7), g2 = ctx.createGain(); env(g2, t, 0.002, 0.6, 0.9); s.connect(bq("lowpass", 1800)).connect(g2); g2.connect(master); g2.connect(rev); }
+    if (type === "reverse") { const s = nsrc(t, d, 1.1), g = ctx.createGain(), f = bq("highpass", 2000); f.frequency.setValueAtTime(6000, t); f.frequency.exponentialRampToValueAtTime(600, t + d); g.gain.setValueAtTime(0.001, t); g.gain.exponentialRampToValueAtTime(0.4, t + d - 0.01); g.gain.linearRampToValueAtTime(0, t + d); s.connect(f).connect(g); g.connect(master); g.connect(rev); }
+    if (type === "sub") { const o = ctx.createOscillator(); o.frequency.value = 55; const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 1); g.gain.linearRampToValueAtTime(0, 7.8); o.connect(g); g.connect(music); o.start(t); o.stop(8); }
+  }
+  return ctx.startRendering();
+}
+function wavB64(buf) {
+  const ch = buf.numberOfChannels, n = buf.length, SR = buf.sampleRate, out = new DataView(new ArrayBuffer(44 + n * ch * 2)); let p = 0;
+  const w = s => { for (const c of s) out.setUint8(p++, c.charCodeAt(0)); }, u32 = v => { out.setUint32(p, v, true); p += 4; }, u16 = v => { out.setUint16(p, v, true); p += 2; };
+  w("RIFF"); u32(36 + n * ch * 2); w("WAVE"); w("fmt "); u32(16); u16(1); u16(ch); u32(SR); u32(SR * ch * 2); u16(ch * 2); u16(16); w("data"); u32(n * ch * 2);
+  const d = []; for (let c = 0; c < ch; c++) d.push(buf.getChannelData(c));
+  for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { const v = Math.max(-1, Math.min(1, d[c][i])); out.setInt16(p, v < 0 ? v * 0x8000 : v * 0x7FFF, true); p += 2; }
+  const b = new Uint8Array(out.buffer); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s);
+}
+window.__audioWav = async () => wavB64(await renderAudio());
+
+// ================= PICTURE =================
+const W = innerWidth, H = innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x05050a); scene.fog = new THREE.FogExp2(0x05050a, 0.024);
+const camera = new THREE.PerspectiveCamera(56, W / H, 0.05, 400);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.7, 0.45, 0.42); composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+scene.add(new THREE.HemisphereLight(0x6a7ac0, 0x1a1028, 1.1));
+const key = new THREE.PointLight(0x5ff2ff, 0, 40, 1.6); key.position.set(0, 2.2, -1.6); scene.add(key);
+const rimL = new THREE.PointLight(0xff3db4, 30, 40, 1.5); rimL.position.set(-6, 14, -4); scene.add(rimL);
+const rimR = new THREE.PointLight(0x7a5cff, 30, 40, 1.5); rimR.position.set(6, 9, 4); scene.add(rimR);
+
+// ---- envelopes from the score ----
+const recent = (arr, t, win, get = x => x) => { const out = []; for (const e of arr) { const te = get(e); if (te <= t && t - te < win) out.push(e); } return out; };
+const kickEnv = t => { let v = 0; for (const k of recent(kicks, t, 0.6)) v = Math.max(v, Math.exp(-(t - k) * 9)); return v; };
+const bassEnv = t => { let v = 0; for (const [tb, m, d, a] of bass) if (t >= tb && t < tb + d + 0.15) v = Math.max(v, a * Math.exp(-(t - tb) * 3)); return v; };
+
+// ---- room of tiles ----
+const SPK = V(0, 0, -4);
+const tiles = []; {
+  const r = rng(21);
+  const add = (p, n, kind) => tiles.push({ p, n, kind, rnd: [r(), r(), r(), r(), r(), r()] });
+  for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) add(V(-6.5 + i, 0, -6.5 + j), V(0, 1, 0), 0);
+  for (let i = 0; i < 14; i++) for (let j = 0; j < 20; j++) { add(V(-6.5 + i, 0.5 + j, -7), V(0, 0, 1), 1); add(V(-7, 0.5 + j, -6.5 + i), V(1, 0, 0), 2); add(V(7, 0.5 + j, -6.5 + i), V(-1, 0, 0), 3); }
+  for (const t of tiles) {
+    const d = t.p.clone().sub(V(0, 3, -4)); const dir = d.clone().normalize().add(V((t.rnd[0] - .5) * .8, (t.rnd[1] - .3) * .8, (t.rnd[2] - .5) * .8)).normalize();
+    t.dist = t.p.distanceTo(SPK); t.vel = dir.multiplyScalar(5 + t.rnd[3] * 11); t.axis = V(t.rnd[4] - .5, t.rnd[5] - .5, t.rnd[0] - .5).normalize(); t.spin = 1 + t.rnd[1] * 4;
+    t.q0 = new THREE.Quaternion().setFromUnitVectors(V(0, 0, 1), t.n);
+  }
+}
+const tileMat = new THREE.MeshStandardMaterial({ color: 0x1a1c27, roughness: 0.32, metalness: 0.55 });
+tileMat.onBeforeCompile = sh => {
+  sh.fragmentShader = sh.fragmentShader.replace("#include <color_fragment>", "").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n#ifdef USE_COLOR\n totalEmissiveRadiance += vColor.rgb;\n#endif");
+};
+const tileGeo = new THREE.BoxGeometry(0.92, 0.92, 0.22);
+const tileMesh = new THREE.InstancedMesh(tileGeo, tileMat, tiles.length); tileMesh.frustumCulled = false; scene.add(tileMesh);
+tileMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(tiles.length * 3), 3);
+// thin glowing grout lines under the floor (light leaking between tiles)
+const grout = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.MeshBasicMaterial({ color: 0x0b2a3a })); grout.rotation.x = -Math.PI / 2; grout.position.y = -0.12; scene.add(grout);
+
+// ---- speaker ----
+const spk = new THREE.Group(); spk.position.copy(SPK); scene.add(spk);
+const cab = new THREE.Mesh(new THREE.BoxGeometry(3, 5.2, 2), new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.55, metalness: 0.2 })); cab.position.y = 2.6; spk.add(cab);
+const ringMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x38e8ff, emissiveIntensity: 1.5, roughness: 0.4 });
+const mkDriver = (y, r) => {
+  const g = new THREE.Group(); g.position.set(0, y, 1.0);
+  const surround = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.09, 16, 64), ringMat); g.add(surround);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 0.92, r * 0.55, 64, 1, true), new THREE.MeshStandardMaterial({ color: 0x22232b, roughness: 0.8, side: THREE.DoubleSide })); cone.rotation.x = -Math.PI / 2; cone.position.z = -r * 0.18; g.add(cone);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 0.3, 32, 16), new THREE.MeshStandardMaterial({ color: 0x2b2c36, roughness: 0.3, metalness: 0.6 })); cap.scale.z = 0.5; cap.position.z = -r * 0.1; g.add(cap);
+  spk.add(g); return { g, cone, cap };
+};
+const woof = mkDriver(1.7, 1.1), tweet = mkDriver(3.9, 0.45);
+// kick rings
+const RINGS = 6, rings = [];
+for (let i = 0; i < RINGS; i++) { const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035, 8, 96), new THREE.MeshBasicMaterial({ color: 0x5ff2ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); scene.add(m); rings.push(m); }
+const floorRings = []; for (let i = 0; i < RINGS; i++) { const m = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 128), new THREE.MeshBasicMaterial({ color: 0x5ff2ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; scene.add(m); floorRings.push(m); }
+
+// ---- glass shards (hats) ----
+const SH = 700, shardMesh = new THREE.InstancedMesh(new THREE.TetrahedronGeometry(0.16, 0), new THREE.MeshStandardMaterial({ color: 0x223, roughness: 0.1, metalness: 0.9, emissive: 0xffffff, emissiveIntensity: 0 }), SH);
+shardMesh.frustumCulled = false; shardMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(SH * 3), 3); scene.add(shardMesh);
+shardMesh.material.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <color_fragment>", "").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n#ifdef USE_COLOR\n totalEmissiveRadiance += vColor.rgb;\n#endif"); };
+const shards = []; hats.forEach(([t, open], hi) => { const r = rng(100 + hi), n = open ? 9 : 5; for (let k = 0; k < n; k++) shards.push({ t, x: (r() - .5) * 12, z: (r() - .5) * 12 - 0.5, y0: 8 + r() * 8, vy: -(2 + r() * 4), sx: (r() - .5) * 2, sz: (r() - .5) * 2, rot: r() * 6, h: 0.55 + r() * 0.12, s: 1.2 + r() * 1.6, open }); });
+
+// ---- light ribbons (lead) ----
+const TR = 56, RIB = 40, ribMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), RIB * TR);
+ribMesh.frustumCulled = false; ribMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(RIB * TR * 3), 3); scene.add(ribMesh);
+const TW = V(0, SPK.y + 3.9, SPK.z + 1.05);
+function ribHead(L, u) { // u seconds since note
+  const drop = L[0] >= DROP, m = L[1], a0 = (m * 2.399) % (Math.PI * 2), dirn = (m % 2 ? 1 : -1);
+  const rr = drop ? 0.6 + 9 * (1 - Math.exp(-u * 1.6)) : 0.4 + 6 * (1 - Math.exp(-u * 1.4));
+  const ang = a0 + dirn * u * (drop ? 2.4 : 3.2);
+  const y = TW.y + (drop ? (m - 76) * 0.35 + 2.0 * u + 3 : 1.6 * u + (m - 76) * 0.15);
+  return V(TW.x + Math.cos(ang) * rr, y, TW.z + 0.5 + Math.sin(ang) * rr * (drop ? 1 : 0.6) + (drop ? 0 : u * 1.6));
+}
+
+// ================= camera path =================
+const CK = [
+  [0.0, [0.0, 1.85, 0.55], [0, 1.7, -3.2]],
+  [1.4, [0.7, 2.5, 3.8], [0, 2.3, -3.6]],
+  [4.0, [-3.6, 3.6, 10.2], [0, 4.4, -3.8]],
+  [6.2, [3.2, 2.2, 8.4], [0, 4.0, -4]],
+  [7.85, [0.8, 2.4, 3.9], [0, 2.4, -3.6]],
+  [8.6, [2.0, 5.5, 20], [0, 6.0, -3.5]],
+  [11.0, [-14, 9, 17], [0, 6.5, -3.5]],
+  [13.6, [-22, 4.5, -1], [0, 6.5, -3.5]],
+  [16.0, [-12, 8, 16], [0, 6.5, -3.5]],
+  [17.0, [-1.5, 6.0, 15.5], [0, 6.5, -3.5]],
+  [17.45, [-0.6, 3.2, 6.0], [0, 2.4, -3.5]],
+  [18.0, [0.0, 1.85, 0.55], [0, 1.7, -3.2]],
+];
+function hermite(keys, idx, t) {
+  let i = 0; while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
+  const k0 = keys[Math.max(0, i - 1)], k1 = keys[i], k2 = keys[i + 1], k3 = keys[Math.min(keys.length - 1, i + 2)];
+  const t1 = k1[0], t2 = k2[0], u = clamp((t - t1) / (t2 - t1)), h = t2 - t1;
+  const out = [];
+  for (let c = 0; c < 3; c++) {
+    const p1 = k1[idx][c], p2 = k2[idx][c];
+    const m1 = (k2[idx][c] - k0[idx][c]) / Math.max(1e-3, (k2[0] - k0[0])) * h * (i === 0 ? 0.5 : 1), m2 = (k3[idx][c] - k1[idx][c]) / Math.max(1e-3, (k3[0] - k1[0])) * h * (i + 2 >= keys.length ? 0.5 : 1);
+    const u2 = u * u, u3 = u2 * u; out.push((2 * u3 - 3 * u2 + 1) * p1 + (u3 - 2 * u2 + u) * m1 + (-2 * u3 + 3 * u2) * p2 + (u3 - u2) * m2);
+  }
+  return V(...out);
+}
+const ACC = [[DROP, 0.07], [SNAP, 0.06]]; for (const k of kicks) if (k >= DROP && k < BACK0) ACC.push([k, 0.008]);
+function shake(t) { let a = 0, b = 0; for (const [t0, amt] of ACC) { const u = t - t0; if (u < 0 || u > 1) continue; const e = amt * Math.exp(-u * 7); a += e * Math.sin(u * 47); b += e * Math.cos(u * 39); } return [a, b]; }
+
+// ================= frame =================
+const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), col = new THREE.Color(), sc = V(1, 1, 1);
+const CYAN = new THREE.Color(0x3fe6ff), MAG = new THREE.Color(0xff2fa8), AMB = new THREE.Color(0xffa63a), WHITE = new THREE.Color(0xffffff);
+function seek(t) {
+  t = clamp(t, 0, DUR - 1e-6);
+  const kE = kickEnv(t), bE = bassEnv(t);
+  // speaker
+  const pump = kE * 0.28; woof.cone.position.z = -1.1 * 0.18 + pump; woof.cap.position.z = -0.11 + pump * 1.1; woof.g.scale.setScalar(1 + kE * 0.03);
+  let lE = 0; for (const L of lead) if (t >= L[0] && t - L[0] < 0.3) lE = Math.max(lE, Math.exp(-(t - L[0]) * 10));
+  tweet.cap.position.z = -0.045 + lE * 0.08; ringMat.emissiveIntensity = 0.9 + kE * 1.8;
+  key.intensity = 4 + kE * 26 + (t >= SNAP && t < SNAP + 0.6 ? 30 * Math.exp(-(t - SNAP) * 6) : 0);
+  rimL.intensity = 40 + bE * 90; rimR.intensity = 40 + lE * 40;
+  // kick rings from the woofer + on the floor
+  const rk = recent(kicks, t, 1.0).slice(-RINGS);
+  for (let i = 0; i < RINGS; i++) { const m = rings[i], fr = floorRings[i], k = rk[i]; if (k == null) { m.material.opacity = 0; fr.material.opacity = 0; continue; } const u = t - k; m.position.set(0, SPK.y + 1.7, SPK.z + 1.1 + u * 2); m.scale.setScalar(1.15 + u * 7); m.material.opacity = (t >= DROP && t < SNAP ? 0.15 : 0.45) * Math.exp(-u * 4); fr.position.set(0, 0.16, SPK.z + 1); fr.scale.setScalar(0.5 + u * 18); fr.material.opacity = (t < DROP || t >= SNAP ? 0.8 : 0.35) * Math.exp(-u * 3); }
+  // tiles
+  grout.visible = !(t >= DROP + 0.1 && t < SNAP - 0.05); const ex = t >= DROP && t < SNAP, rk2 = recent(kicks, t, 1.2), rc = recent(claps, t, 1.0, c => c[0]);
+  for (let i = 0; i < tiles.length; i++) {
+    const T = tiles[i]; let p = T.p.clone(); q.copy(T.q0); col.setRGB(0, 0, 0);
+    // kick wave: bounce along the normal + cyan glow
+    let bump = 0; for (const k of rk2) { const u = t - k - T.dist / 22; if (u > 0 && u < 0.6) bump = Math.max(bump, Math.sin(Math.min(1, u / 0.3) * Math.PI) * Math.exp(-u * 3)); }
+    const amp = T.kind === 0 ? 0.42 : 0.16; p.addScaledVector(T.n, bump * amp * (t < 4 ? 0.8 : 1)); let gl = 0; for (const k of rk2) { const u = t - k - T.dist / 22; if (u > 0 && u < 0.5) gl = Math.max(gl, Math.exp(-u * 11)); } col.r += CYAN.r * gl * 1.4 + 0.01; col.g += CYAN.g * gl * 1.4 + 0.012; col.b += CYAN.b * gl * 1.4 + 0.025;
+    // clap: walls punch outward in a ring from the wall centre
+    if (T.kind > 0) { let pb = 0; for (const [tc, v] of rc) { const c0 = T.kind === 1 ? V(0, 6, -7) : V(T.kind === 2 ? -7 : 7, 6, -4); const d = T.p.distanceTo(c0), u = t - tc - d / 30; if (u > 0 && u < 0.45) pb = Math.max(pb, v * Math.sin(Math.min(1, u / 0.12) * Math.PI) * Math.exp(-u * 5)); } p.addScaledVector(T.n, -pb * 0.75); col.r += MAG.r * pb * pb * 1.6; col.g += MAG.g * pb * pb * 1.6; col.b += MAG.b * pb * pb * 1.6; }
+    // bass: walls twist
+    if (T.kind > 0 && bE > 0.01) { const tw = bE * (t >= DROP ? 0.55 : 0.3) * Math.sin(T.p.y * 0.42 - t * 7 + T.kind); q2.setFromAxisAngle(V(0, 1, 0), tw); q.premultiply(q2); const g = bE * 0.35 * (0.5 + 0.5 * Math.sin(T.p.y * 0.42 - t * 7)); col.r += AMB.r * g; col.g += AMB.g * g; col.b += AMB.b * g; }
+    // drop: the room explodes into zero-g and floats; at BACK0..SNAP it flies home
+    if (ex) {
+      const te = DROP + T.dist / 45, u = Math.max(0, t - te), k = 1.1, fly = (1 - Math.exp(-u * k)) / k;
+      const out = T.vel.clone().multiplyScalar(fly * 0.62);
+      // pulse with every kick: breathe outward a little
+      out.addScaledVector(T.vel.clone().normalize(), kE * 0.6);
+      const back = sstep(BACK0, SNAP, t), e = back * back * back; // accelerate home
+      p.addScaledVector(out, 1 - e);
+      q2.setFromAxisAngle(T.axis, T.spin * (Math.log(1 + u * 2) * 1.6) * (1 - e)); q.premultiply(q2);
+      const g = (0.45 + kE * 1.3 * (0.4 + 0.6 * T.rnd[2])) * sstep(DROP, DROP + 0.5, t); const hue = (T.rnd[0] < 0.45 ? CYAN : T.rnd[0] < 0.8 ? MAG : AMB); col.r += hue.r * g * (1 - e); col.g += hue.g * g * (1 - e); col.b += hue.b * g * (1 - e);
+    }
+    if (t >= SNAP) { const u = t - SNAP; const s2 = Math.exp(-u * 5) * Math.sin(u * 30) * 0.18; p.addScaledVector(T.n, s2 + 0.25 * Math.exp(-u * 8)); const g = 1.1 * Math.exp(-u * 4); col.r += CYAN.r * g; col.g += CYAN.g * g; col.b += CYAN.b * g; }
+    col.multiplyScalar(0.38); m4.compose(p, q, sc); tileMesh.setMatrixAt(i, m4); tileMesh.setColorAt(i, col);
+  }
+  tileMesh.instanceMatrix.needsUpdate = true; tileMesh.instanceColor.needsUpdate = true;
+  // shards
+  let si = 0;
+  for (const s of shards) { if (si >= SH) break; const u = t - s.t; if (u < 0 || u > 1.6) continue;
+    let y, x = s.x + s.sx * u, z = s.z + s.sz * u, glow;
+    if (s.t < DROP || s.t >= SNAP) { y = s.y0 + s.vy * u - 0.5 * 26 * u * u; if (y < 0.2) { const ub = u - (Math.sqrt(s.vy * s.vy + 2 * 26 * (s.y0 - 0.2)) + s.vy) / 26; y = 0.2 + Math.abs(Math.sin(ub * 12)) * 0.4 * Math.exp(-ub * 6); } glow = 2.2 * Math.exp(-u * 1.5); }
+    else { const r0 = 4 + s.h * 14; y = 3 + s.y0 * 0.6 + s.vy * 0.2 * u; x = s.x * 1.6; z = s.z * 1.6; glow = 3 * Math.exp(-u * 4); }
+    q.setFromEuler(new THREE.Euler(s.rot + u * 9, s.rot * 2 + u * 7, 0)); const ss = s.s * (u > 1.2 ? 1 - (u - 1.2) / 0.4 : 1); sc.setScalar(Math.max(0.001, ss)); m4.compose(V(x, y, z), q, sc); shardMesh.setMatrixAt(si, m4); col.setRGB(glow * 0.75, glow * 0.85, glow).multiplyScalar(0.35); shardMesh.setColorAt(si, col); si++; }
+  sc.setScalar(1);
+  for (; si < SH; si++) { m4.makeScale(0, 0, 0); shardMesh.setMatrixAt(si, m4); }
+  shardMesh.instanceMatrix.needsUpdate = true; shardMesh.instanceColor.needsUpdate = true; shardMesh.count = SH;
+  // ribbons
+  let ri = 0;
+  for (const L of lead) { if (ri >= RIB) break; const u = t - L[0], life = L[0] >= SNAP ? 1.0 : (L[0] >= DROP ? 1.7 : 1.3); if (u < 0 || u > life) continue;
+    const hue = 0.5 + ((L[1] - 69) / 16) * 0.42; const fade = 1 - sstep(life * 0.6, life, u);
+    for (let j = 0; j < TR; j++) { const uj = u - j * 0.011; const idx = ri * TR + j; if (uj < 0) { m4.makeScale(0, 0, 0); ribMesh.setMatrixAt(idx, m4); continue; }
+      const p = ribHead(L, uj); const s = (1 - j / TR) * 0.75 * (0.8 + 0.6 * Math.exp(-u * 4)) * (L[0] >= DROP ? 1.4 : 1); m4.compose(p, q.identity(), V(s, s, s)); ribMesh.setMatrixAt(idx, m4);
+      col.setHSL(hue % 1, 1, 0.6); const b = fade * (1.6 - j / TR * 1.2); col.multiplyScalar(b); ribMesh.setColorAt(idx, col); }
+    ri++; }
+  for (let k = ri * TR; k < RIB * TR; k++) { m4.makeScale(0, 0, 0); ribMesh.setMatrixAt(k, m4); }
+  ribMesh.instanceMatrix.needsUpdate = true; ribMesh.instanceColor.needsUpdate = true;
+  // camera
+  const pos = hermite(CK, 1, t), tg = hermite(CK, 2, t), [s1, s2] = shake(t);
+  const w = Math.PI * 2 / DUR; pos.x += 0.06 * Math.sin(t * w * 3 + 0.4); pos.y += 0.05 * Math.sin(t * w * 5 + 1.2);
+  const dist = pos.distanceTo(tg); pos.add(V(s2 * dist, s1 * dist, 0));
+  camera.position.copy(pos); camera.lookAt(tg); camera.rotateZ(0.012 * Math.sin(t * w * 2) + s2 * 0.6);
+  bloom.strength = 0.6 + kE * 0.2 + (t >= SNAP ? 0.5 * Math.exp(-(t - SNAP) * 3) : 0);
+  composer.render();
+}
+window.__seek = seek;
+window.__score = { kicks, claps, hats, bass, lead, DROP, BACK0, SNAP };
+const qs = new URLSearchParams(location.search);
+seek(+(qs.get("t") || 0));
+if (!qs.has("render") && !qs.has("t")) { const t0 = performance.now(); const loop = () => { seek(((performance.now() - t0) / 1000) % DUR); requestAnimationFrame(loop); }; loop(); }
+</script>
+</body>
+</html>
