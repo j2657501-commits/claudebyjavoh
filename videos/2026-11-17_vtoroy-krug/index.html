@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Второй круг</title>
+<link rel="stylesheet" href="fonts/g.css">
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block;margin:0 auto;height:100vh;width:calc(100vh*9/16);max-width:100vw}
+</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+"use strict";
+/* Второй круг — бесшовный бесконечный зум сквозь экраны телефонов. Всё — функция времени t (детерминировано).
+   window.__seek(t), window.__duration, window.__audioWav() для render.cjs. */
+const W = 1080, H = 1920, DUR = 19.2;
+const cv = document.getElementById("c"), MX = cv.getContext("2d"); let X = MX;
+const OC = document.createElement("canvas"); OC.width = W; OC.height = H; const OX = OC.getContext("2d");
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const sm = (a, b, x) => { x = clamp((x - a) / (b - a)); return x * x * (3 - 2 * x); };
+const lerp = (a, b, x) => a + (b - a) * x;
+function rng(seed) { let s = seed | 0; return () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const spring = (x, k = 9, z = 0.45) => x <= 0 ? 0 : 1 - Math.exp(-z * k * x) * Math.cos(k * Math.sqrt(1 - z * z) * x);
+
+/* ---------- complex affine maps (similarity transforms) ---------- */
+const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+const ca = (a, b) => [a[0] + b[0], a[1] + b[1]], cs = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+const cpol = (r, th) => [r * Math.cos(th), r * Math.sin(th)];
+const comp = (A, B) => ({ w: cm(A.w, B.w), t: ca(cm(A.w, B.t), A.t) });
+const ID = { w: [1, 0], t: [0, 0] };
+const trn = (x, y) => ({ w: [1, 0], t: [x, y] });
+const setT = A => X.setTransform(A.w[0], A.w[1], -A.w[1], A.w[0], A.t[0], A.t[1]);
+const scaleOf = A => Math.hypot(A.w[0], A.w[1]);
+function screenMap(sc) { const S = cpol(sc.w / W, sc.rot); return { w: S, t: cs([sc.cx, sc.cy], cm(S, [W / 2, H / 2])) }; }
+function viewMap(M, f, d) { // level → frame, zooming f of the way into screen M; d = layer depth (parallax)
+  const S = M.w, c = cdiv(M.t, cs([1, 0], S)), r = Math.hypot(S[0], S[1]), th = Math.atan2(S[1], S[0]);
+  const w = cpol(Math.pow(r, -f * d), -th * f * d); return { w, t: cs(c, cm(w, c)) };
+}
+
+/* ---------- drawing helpers ---------- */
+function rr(x, y, w, h, r) { X.beginPath(); X.moveTo(x + r, y); X.arcTo(x + w, y, x + w, y + h, r); X.arcTo(x + w, y + h, x, y + h, r); X.arcTo(x, y + h, x, y, r); X.arcTo(x, y, x + w, y, r); X.closePath(); }
+function clipOut(sc) { X.beginPath(); X.rect(-6000, -6000, 13000, 13000); X.save(); X.translate(sc.cx, sc.cy); X.rotate(sc.rot); const w = sc.w, h = w * 16 / 9, r = w * 0.09, x = -w / 2, y = -h / 2; X.moveTo(x + r, y); X.arcTo(x, y, x, y + h, r); X.arcTo(x, y + h, x + w, y + h, r); X.arcTo(x + w, y + h, x + w, y, r); X.arcTo(x + w, y, x, y, r); X.closePath(); X.restore(); X.clip("evenodd"); }
+function ell(x, y, rx, ry, rot = 0) { X.beginPath(); X.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), rot, 0, TAU); }
+function glow(x, y, r, col, a) { const g = X.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)"); X.save(); X.globalCompositeOperation = "lighter"; X.globalAlpha = a; X.fillStyle = g; X.fillRect(x - r, y - r, r * 2, r * 2); X.restore(); }
+function lit(base, hot, x, y, r) { const g = X.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, hot); g.addColorStop(1, base); return g; }
+function lin(x0, y0, x1, y1, stops) { const g = X.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+function cap(x0, y0, x1, y1, w, fill) { X.beginPath(); X.moveTo(x0, y0); X.lineTo(x1, y1); X.lineCap = "round"; X.lineWidth = w; X.strokeStyle = fill; X.stroke(); }
+const PHONE = "#9cc8ff";
+
+/* phone body around a screen rect; inside(fn) runs with a transform in screen-local units (origin = screen centre, x right, y down) */
+function inScreen(sc, fn) { X.save(); X.translate(sc.cx, sc.cy); X.rotate(sc.rot); fn(sc.w, sc.w * 16 / 9); X.restore(); }
+function phoneBody(sc) {
+  inScreen(sc, (w, h) => {
+    const b = w * 0.045;
+    X.shadowColor = "rgba(0,0,0,.55)"; X.shadowBlur = w * 0.12; X.shadowOffsetY = w * 0.04;
+    rr(-w / 2 - b, -h / 2 - b, w + 2 * b, h + 2 * b, w * 0.13); X.fillStyle = "#0b0c10"; X.fill();
+    X.shadowColor = "transparent";
+    X.lineWidth = w * 0.012; X.strokeStyle = lin(-w / 2, -h / 2, w / 2, h / 2, [[0, "#5d6475"], [0.5, "#1c1f27"], [1, "#454b5a"]]); X.stroke();
+    rr(w / 2 + b * 0.6, -h * 0.28, w * 0.025, h * 0.12, 3); X.fillStyle = "#2a2e38"; X.fill();
+  });
+}
+function screenGlass(sc, a) { if (a <= 0.001) return; inScreen(sc, (w, h) => { X.save(); rr(-w / 2, -h / 2, w, h, w * 0.09); X.clip(); X.globalAlpha = a; X.fillStyle = lin(-w / 2, -h / 2, w / 2, h / 2, [[0, "rgba(255,255,255,0)"], [0.42, "rgba(255,255,255,0)"], [0.5, "rgba(255,255,255,.22)"], [0.58, "rgba(255,255,255,0)"], [1, "rgba(255,255,255,0)"]]); X.fillRect(-w / 2, -h / 2, w, h); X.restore(); }); }
+function island(sc, a) { inScreen(sc, (w, h) => { X.globalAlpha = a; rr(-w * 0.14, -h / 2 + w * 0.04, w * 0.28, w * 0.075, w * 0.04); X.fillStyle = "#000"; X.fill(); X.globalAlpha = 1; }); }
+
+/* a hand holding the phone from below; thumb tip animates (swipe) */
+function handBack(sc, skin, sleeve) {
+  inScreen(sc, (w, h) => {
+    X.fillStyle = sleeve; ell(w * 0.42, h * 0.78, w * 0.42, h * 0.26, -0.5); X.fill();
+    X.fillStyle = lit(skin[0], skin[1], 0, h * 0.3, w * 0.9); ell(w * 0.12, h * 0.56, w * 0.5, h * 0.17, -0.25); X.fill();
+  });
+}
+function handFront(sc, skin, thumb) {
+  inScreen(sc, (w, h) => {
+    const b = w * 0.045;
+    for (let i = 0; i < 3; i++) { const y = h * (0.1 + i * 0.105); X.fillStyle = lit(skin[0], skin[1], -w / 2, y, w * 0.25); rr(-w / 2 - b - w * 0.1, y, w * 0.13, h * 0.085, w * 0.05); X.fill(); }
+    const bx = w * 0.56, by = h * 0.62, tx = thumb[0] * w, ty = thumb[1] * h, tw = w * 0.16 * thumb[2];
+    X.fillStyle = skin[0]; X.beginPath(); X.moveTo(bx + tw * 0.4, by + tw * 0.6); X.quadraticCurveTo(bx + tw * 0.2, (by + ty) / 2, tx + tw * 0.48, ty); X.lineTo(tx - tw * 0.48, ty); X.quadraticCurveTo(bx - tw * 0.9, (by + ty) / 2 + tw, bx - tw * 0.6, by + tw); X.closePath(); X.fill();
+    X.fillStyle = lit(skin[0], skin[1], tx, ty, tw * 1.2); ell(tx, ty, tw * 0.5, tw * 0.62, -0.25); X.fill();
+    X.fillStyle = "rgba(255,240,235,.35)"; ell(tx - tw * 0.06, ty - tw * 0.22, tw * 0.28, tw * 0.24, -0.25); X.fill();
+  });
+}
+function thumbAt(L, tau) { // swipe: rest (lower right, outside the screen) → drag up across → back to rest
+  const s0 = L.swipe, u = clamp((tau - s0) / 0.42), back = sm(s0 + 0.42, s0 + 0.85, tau), down = sm(s0 - 0.25, s0, tau);
+  const rest = [0.64, 0.58, 1.05];
+  if (tau < s0) return [lerp(rest[0], 0.32, down), lerp(rest[1], 0.32, down), lerp(1.05, 1, down)];
+  if (tau < s0 + 0.42) { const e = 1 - Math.pow(1 - u, 2.2); return [lerp(0.32, 0.16, e), lerp(0.32, -0.22, e), 1]; }
+  return [lerp(0.16, rest[0], back), lerp(-0.22, rest[1], back), lerp(1, 1.05, back)];
+}
+
+/* person seen from behind/above, looking at the phone (over-the-shoulder) */
+function personBack(o, part) {
+  const { hx, hy, r, side } = o, P = (dx, dy) => [hx + side * dx * r, hy + dy * r];
+  const lx = o.light[0], ly = o.light[1];
+  // arm reaching the phone
+  const s = P(-1.25, 1.55), hand = o.hand;
+  if (part === "arm") {
+  X.beginPath(); X.moveTo(s[0], s[1]); X.quadraticCurveTo(hand[0] + side * r * 0.9, (s[1] + hand[1]) / 2 + r * 0.9, hand[0], hand[1]); X.lineCap = "round"; X.lineWidth = r * 0.95; X.strokeStyle = lit(o.coat, o.coatLit, lx, ly, r * 4); X.stroke(); return; }
+  if (o.pre) o.pre();
+  // torso
+  X.beginPath(); let p = P(-0.38, 0.62); X.moveTo(...p);
+  X.bezierCurveTo(...P(-0.9, 1.0), ...P(-1.55, 1.15), ...P(-1.75, 1.95));
+  X.bezierCurveTo(...P(-1.9, 2.6), ...P(-1.7, 4.2), ...P(-1.6, 9));
+  X.lineTo(...P(4.5, 9)); X.lineTo(...P(4.5, 1.9));
+  X.bezierCurveTo(...P(3.2, 1.25), ...P(1.4, 1.05), ...P(0.42, 0.62)); X.closePath();
+  X.fillStyle = lit(o.coat, o.coatLit, lx, ly, r * 5); X.fill();
+  if (o.collar) { X.beginPath(); X.moveTo(...P(-0.62, 0.55)); X.quadraticCurveTo(...P(0, 1.05), ...P(0.62, 0.55)); X.quadraticCurveTo(...P(0, 0.85), ...P(-0.62, 0.55)); X.fillStyle = o.collar; X.fill(); }
+  if (o.straps) { X.lineWidth = r * 0.28; X.strokeStyle = o.straps; X.beginPath(); X.moveTo(...P(-0.9, 1.0)); X.quadraticCurveTo(...P(-1.1, 2.2), ...P(-0.8, 3.6)); X.moveTo(...P(1.3, 1.1)); X.quadraticCurveTo(...P(1.5, 2.3), ...P(1.2, 3.6)); X.stroke(); }
+  // rim light on the inner edge
+  X.save(); X.globalCompositeOperation = "lighter"; X.lineWidth = r * 0.07; X.strokeStyle = o.rim || "rgba(140,190,255,.35)";
+  X.beginPath(); X.moveTo(...P(-0.5, 0.7)); X.bezierCurveTo(...P(-0.9, 1.0), ...P(-1.55, 1.15), ...P(-1.75, 1.95)); X.stroke(); X.restore();
+  // neck, head
+  X.fillStyle = o.skinDark; rr(hx - r * 0.38, hy + r * 0.2, r * 0.76, r * 0.55, r * 0.2); X.fill();
+  X.fillStyle = lit(o.skin, o.skinLit, ...P(-1.2, 0.6), r * 1.6); ell(hx, hy, r * 0.82, r * 0.98); X.fill();
+  const ear = P(-0.8, 0.12); X.fillStyle = lit(o.skin, o.skinLit, ear[0] - side * r * 0.2, ear[1], r * 0.4); ell(ear[0], ear[1], r * 0.16, r * 0.27, side * 0.15); X.fill();
+  if (o.hair) o.hair(P, r);
+}
+
+/* person facing the camera, eyes down on a phone */
+function personFront(o) {
+  const { x, y, r } = o, py = y + r * 1.75;
+  X.fillStyle = lit(o.body, o.bodyLit, x, py, r * 2.6);
+  X.beginPath(); X.moveTo(x - r * 0.45, y + r * 0.7); X.bezierCurveTo(x - r * 1.6, y + r * 1.0, x - r * 2.0, y + r * 1.4, x - r * 2.1, y + r * 3.5); X.lineTo(x + r * 2.1, y + r * 3.5); X.bezierCurveTo(x + r * 2.0, y + r * 1.4, x + r * 1.6, y + r * 1.0, x + r * 0.45, y + r * 0.7); X.closePath(); X.fill();
+  X.fillStyle = o.skinDark; rr(x - r * 0.33, y + r * 0.4, r * 0.66, r * 0.5, r * 0.2); X.fill();
+  if (o.hairBack) o.hairBack(x, y, r);
+  X.fillStyle = lit(o.skin, o.skinLit, x, y + r * 1.3, r * 1.6); ell(x, y, r * 0.78, r * 0.98); X.fill();
+  // face: eyes down, brows, nose, mouth
+  const blink = o.blink ? 1 : 0;
+  X.strokeStyle = "rgba(20,15,25,.75)"; X.lineCap = "round"; X.lineWidth = r * 0.06;
+  for (const s of [-1, 1]) { X.beginPath(); X.arc(x + s * r * 0.32, y + r * 0.08, r * 0.14, 0.15 * Math.PI, 0.85 * Math.PI); X.stroke(); if (!blink) { X.fillStyle = "rgba(170,215,255,.9)"; ell(x + s * r * 0.32, y + r * 0.2, r * 0.04, r * 0.025); X.fill(); } }
+  X.lineWidth = r * 0.05; for (const s of [-1, 1]) { X.beginPath(); X.moveTo(x + s * r * 0.18, y - r * 0.16); X.quadraticCurveTo(x + s * r * 0.33, y - r * 0.22, x + s * r * 0.5, y - r * 0.12); X.stroke(); }
+  X.strokeStyle = "rgba(20,15,25,.35)"; X.beginPath(); X.moveTo(x, y + r * 0.1); X.quadraticCurveTo(x + r * 0.08, y + r * 0.35, x - r * 0.02, y + r * 0.4); X.stroke();
+  X.strokeStyle = "rgba(60,20,30,.6)"; X.beginPath(); X.moveTo(x - r * 0.14, y + r * 0.62); X.quadraticCurveTo(x, y + r * 0.58, x + r * 0.14, y + r * 0.62); X.stroke();
+  if (o.hair) o.hair(x, y, r);
+  // phone (back) + hands + screen light on the face
+  X.fillStyle = "#15171d"; rr(x - r * 0.42, py - r * 0.4, r * 0.84, r * 0.62, r * 0.1); X.fill();
+  X.fillStyle = o.skin; ell(x - r * 0.45, py + r * 0.12, r * 0.2, r * 0.26); X.fill(); ell(x + r * 0.45, py + r * 0.12, r * 0.2, r * 0.26); X.fill();
+  glow(x, py - r * 0.6, r * 1.9, o.glow || PHONE, 0.42);
+}
+
+/* the digital clock (seed → payoff) */
+function clock(x, y, w, tau) {
+  const h = w * 0.53; X.fillStyle = "#08080a"; rr(x, y, w, h, w * 0.08); X.fill();
+  X.strokeStyle = "#1d1d22"; X.lineWidth = 4; X.stroke();
+  X.font = `900 ${Math.round(w * 0.4)}px 'Golos Text'`; X.textAlign = "center"; X.textBaseline = "middle";
+  const on = Math.floor(tau / 0.6) % 2 === 0 || tau < 0;
+  X.save(); X.shadowColor = "rgba(255,40,30,.9)"; X.shadowBlur = w * 0.12; X.fillStyle = "#ff3b2f";
+  X.fillText("02 47", x + w / 2, y + h * 0.54); if (on) X.fillText(":", x + w / 2, y + h * 0.5); X.restore();
+  glow(x + w / 2, y + h / 2, w * 0.9, "#ff3020", 0.16);
+}
+
+/* ---------- feed inside a screen: random card → swipe → next world ---------- */
+const CARD = [["#ff7a59", "#ffcc4d"], ["#3a7bd5", "#00d2ff"], ["#8e2de2", "#f15bb5"], ["#11998e", "#38ef7d"], ["#f857a6", "#ff5858"], ["#4568dc", "#b06ab3"]];
+function feedCard(k, tau) {
+  const c = CARD[k % CARD.length]; X.fillStyle = lin(0, 0, W, H, [[0, c[0]], [1, c[1]]]); X.fillRect(0, 0, W, H);
+  const R = rng(k * 97 + 5);
+  for (let i = 0; i < 6; i++) { const a = R() * TAU, sp = 0.6 + R(); X.fillStyle = `rgba(255,255,255,${0.12 + R() * 0.2})`; ell(W * (0.2 + R() * 0.6) + Math.cos(tau * sp + a) * 120, H * (0.25 + R() * 0.5) + Math.sin(tau * sp * 1.3 + a) * 160, 90 + R() * 200, 90 + R() * 200); X.fill(); }
+  X.fillStyle = "rgba(0,0,0,.18)"; rr(W * 0.25, H * 0.36, W * 0.5, W * 0.5, W * 0.12); X.fill();
+}
+function feedUI(a) {
+  if (a <= 0.01) return; X.globalAlpha = a; X.fillStyle = "#fff"; X.strokeStyle = "#fff";
+  const ix = 975;
+  X.save(); X.translate(ix, 1080); X.beginPath(); X.moveTo(0, 30); X.bezierCurveTo(-70, -20, -30, -70, 0, -30); X.bezierCurveTo(30, -70, 70, -20, 0, 30); X.fillStyle = "#ff2d55"; X.fill(); X.restore();
+  X.save(); X.translate(ix, 1290); ell(0, 0, 46, 40); X.fill(); X.beginPath(); X.moveTo(-20, 30); X.lineTo(-34, 58); X.lineTo(6, 36); X.fill(); X.restore();
+  X.save(); X.translate(ix, 1490); X.beginPath(); X.moveTo(-40, 30); X.quadraticCurveTo(-30, -20, 15, -20); X.lineTo(15, -45); X.lineTo(50, 0); X.lineTo(15, 45); X.lineTo(15, 20); X.quadraticCurveTo(-20, 15, -40, 30); X.fill(); X.restore();
+  X.font = "700 40px 'Golos Text'"; X.textAlign = "center"; X.textBaseline = "middle";
+  X.fillText("1,2M", ix, 1160); X.fillText("8 403", ix, 1370); X.fillText("31K", ix, 1570);
+  X.textAlign = "left"; X.font = "700 52px 'Golos Text'"; X.fillText("@ещё_одно", 60, 1640);
+  X.globalAlpha = a * 0.85; rr(60, 1700, 620, 30, 15); X.fill(); rr(60, 1750, 420, 30, 15); X.fill();
+  X.globalAlpha = a * 0.5; X.fillRect(0, 1890, W, 8); X.globalAlpha = a; X.fillRect(0, 1890, W * 0.62, 8); X.globalAlpha = 1;
+}
+
+/* ================= WORLDS ================= */
+const R0 = rng(11);
+const CITY = Array.from({ length: 16 }, (_, i) => ({ x: 70 + i * 26, w: 22 + R0() * 26, h: 80 + R0() * 300, win: Array.from({ length: 14 }, () => R0()) }));
+const BOKEH0 = Array.from({ length: 14 }, () => ({ x: 90 + R0() * 340, y: 760 + R0() * 220, r: 10 + R0() * 22, c: R0() < 0.5 ? "#ffbf69" : "#7fb3ff" }));
+const DUST = Array.from({ length: 34 }, () => ({ x: R0(), y: R0(), r: 1.5 + R0() * 4, s: 0.2 + R0() * 0.6, p: R0() * TAU }));
+const STARS = Array.from({ length: 260 }, () => ({ x: R0() * W, y: R0() * 1150, r: 0.6 + R0() * 2.2, p: R0() * TAU, f: 0.5 + R0() * 2 }));
+const RAIN = Array.from({ length: 90 }, () => ({ x: R0(), y: R0(), l: 30 + R0() * 50, s: 1.2 + R0() * 0.8 }));
+const DROPS = Array.from({ length: 40 }, () => ({ x: R0(), y: R0(), r: 3 + R0() * 6 }));
+const LIGHTS2 = Array.from({ length: 26 }, () => ({ x: R0() * W, y: 120 + R0() * 520, r: 20 + R0() * 50, a: 0.15 + R0() * 0.3 }));
+const CRATERS = Array.from({ length: 22 }, () => ({ x: R0() * W, y: 1200 + R0() * 700, r: 20 + R0() * 90 }));
+const ridge = (seed, amp, base, n = 5) => { const r = rng(seed), ph = Array.from({ length: n }, () => [r() * TAU, 1 + r() * 7, r()]); return x => base - amp * ph.reduce((s, [p, f, a], i) => s + Math.abs(Math.sin(x / W * f * 1.6 + p)) * (a + 0.3) / (i + 1), 0); };
+const RIDGES = [ridge(3, 260, 1150), ridge(7, 300, 1260), ridge(19, 340, 1420)];
+const dust = (cx, cy, rad, tau, a, col = "rgba(200,225,255,") => { for (const d of DUST) { const x = cx + (d.x - 0.5) * rad * 2 + Math.sin(tau * d.s + d.p) * 30, y = cy + (d.y - 0.5) * rad * 2 - ((tau * d.s * 40) % 200) + 100; X.fillStyle = col + (a * (0.25 + 0.35 * Math.sin(d.p + tau))).toFixed(3) + ")"; ell(x, y, d.r, d.r); X.fill(); } };
+const sway = (L, tau, amp, f, ph = 0) => amp * Math.sin(TAU * f * tau + ph) * (1 - sm(L.T - L.plunge - 0.35, L.T - L.plunge + 0.15, tau));
+
+const SKIN = { a: ["#c98f73", "#f3c7b4"], b: ["#8d5a43", "#d7a48d"], c: ["#e0b49b", "#ffe1d2"], old: ["#cfa894", "#f7ddd1"], glove: ["#cfd2da", "#ffffff"] };
+
+const LEVELS = [
+  { // 0 — ты, 02:47, кровать
+    T: 2.4, plunge: 1.15, swipe: 0.12, skin: SKIN.a, sleeve: "#262b3a",
+    screen: (L, t) => ({ cx: 560 + sway(L, t, 6, 0.4), cy: 1125 + sway(L, t, 8, 0.33, 1), w: 480, rot: -0.07 + sway(L, t, 0.012, 0.3) }),
+    bg(L, t) {
+      X.fillStyle = lin(0, 0, 0, H, [[0, "#060914"], [1, "#12172c"]]); X.fillRect(-200, -200, W + 400, H + 400);
+      X.save(); rr(70, 380, 390, 640, 10); X.clip();
+      X.fillStyle = lin(0, 380, 0, 1020, [[0, "#0a1636"], [1, "#24305e"]]); X.fillRect(70, 380, 390, 640);
+      for (const b of CITY) { X.fillStyle = "#070b18"; X.fillRect(b.x, 1020 - b.h, b.w, b.h); b.win.forEach((v, i) => { if (v > 0.55) { X.fillStyle = `rgba(255,205,120,${0.35 + 0.4 * Math.sin(v * 50 + t * 0.4) ** 2})`; X.fillRect(b.x + 4 + (i % 2) * (b.w / 2 - 2), 1020 - b.h + 12 + Math.floor(i / 2) * 22, 6, 9); } }); }
+      for (const b of BOKEH0) glow(b.x, b.y, b.r * 2.2, b.c, 0.35);
+      X.fillStyle = "rgba(5,8,20,.55)"; for (let y = 390; y < 1020; y += 36) X.fillRect(70, y, 390, 14);
+      X.restore(); X.lineWidth = 16; X.strokeStyle = "#1a2040"; rr(70, 380, 390, 640, 10); X.stroke();
+      X.fillStyle = lin(0, 0, 0, 1, [[0, "#1d2445"], [1, "#1d2445"]]); X.fillRect(450, 330, 80, 760);
+    },
+    mid(L, t) {
+      X.fillStyle = lin(0, 760, 0, 1300, [[0, "#151a30"], [1, "#0a0d1b"]]); X.fillRect(805, 760, 400, 560); X.fillStyle = "#222a4a"; X.fillRect(805, 752, 400, 14);
+      clock(830, 612, 240, t);
+    },
+    back(L, t, sc) {
+      const lx = sc.cx, ly = sc.cy;
+      X.fillStyle = lit("#0e1328", "#33407a", lx, ly + 300, 900); X.beginPath(); X.moveTo(-100, 1480); X.bezierCurveTo(250, 1400, 600, 1560, 1180, 1430); X.lineTo(1180, 2100); X.lineTo(-100, 2100); X.fill();
+      X.strokeStyle = "rgba(120,150,230,.18)"; X.lineWidth = 10; X.beginPath(); X.moveTo(-50, 1690); X.bezierCurveTo(250, 1600, 420, 1780, 700, 1720); X.stroke(); X.beginPath(); X.moveTo(500, 1860); X.bezierCurveTo(700, 1780, 900, 1830, 1150, 1760); X.stroke();
+      glow(lx, ly, 900, "#5f86d6", 0.32);
+      handBack(sc, L.skin, L.sleeve);
+    },
+  },
+  { // 1 — метро
+    T: 3.0, plunge: 1.15, swipe: 0.15, skin: SKIN.b, sleeve: "#1d2129",
+    screen: (L, t) => ({ cx: 420 + sway(L, t, 7, 0.5), cy: 1330 + sway(L, t, 5, 0.9, 2), w: 280, rot: 0.11 + sway(L, t, 0.015, 0.5, 1) }),
+    bg(L, t) {
+      const sx = 7 * Math.sin(TAU * 0.5 * t);
+      X.save(); X.translate(sx, 0);
+      X.fillStyle = lin(0, 0, 0, H, [[0, "#3c4a48"], [0.5, "#273230"], [1, "#151b1b"]]); X.fillRect(-200, -200, W + 400, H + 400);
+      for (let i = 0; i < 3; i++) { const x0 = -60 + i * 420; X.fillStyle = "#04060a"; rr(x0, 470, 360, 330, 30); X.fill();
+        X.save(); rr(x0, 470, 360, 330, 30); X.clip();
+        for (let k = 0; k < 7; k++) { const xx = ((k * 173 - t * 2600) % 1500 + 1500) % 1500 - 300; X.fillStyle = "rgba(255,170,80,.7)"; X.fillRect(xx, 560 + (k % 3) * 70, 260, 5); glow(xx + 130, 562 + (k % 3) * 70, 120, "#ff9a3c", 0.25); }
+        X.fillStyle = "rgba(150,200,190,.08)"; X.fillRect(x0, 470, 360, 120); X.restore(); }
+      X.fillStyle = "#1e3f86"; rr(-80, 1010, W + 160, 120, 20); X.fill(); X.fillStyle = "#28529f"; rr(-80, 930, W + 160, 110, 26); X.fill();
+      X.fillStyle = "rgba(235,255,245,.95)"; X.fillRect(-100, 96, W + 200, 22); glow(540, 108, 700, "#d9fff0", 0.25);
+      X.restore();
+      const P = [{ x: 140, y: 730, sk: SKIN.c, hair: "#2b1d16", body: "#6d2f3c" }, { x: 400, y: 715, sk: SKIN.b, hair: "#0d0d10", body: "#2d4a5f", cap: 1 }, { x: 660, y: 735, sk: SKIN.a, hair: "#6b3d22", body: "#3f3f46", long: 1 }, { x: 920, y: 720, sk: SKIN.c, hair: "#c9a36b", body: "#5c5430" }];
+      P.forEach((p, i) => personFront({ x: p.x + sx, y: p.y + 2 * Math.sin(t * 1.6 + i), r: 78, skin: p.sk[0], skinLit: "#b8d2ff", skinDark: "#4a3328", body: p.body, bodyLit: "#5e6f99", blink: ((t + i * 0.7) % 3.1) < 0.12,
+        hairBack: p.long ? (x, y, r) => { X.fillStyle = p.hair; ell(x, y + r * 0.6, r * 1.0, r * 1.5); X.fill(); } : null,
+        hair: (x, y, r) => { X.fillStyle = p.hair; X.beginPath(); X.ellipse(x, y - r * 0.25, r * 0.84, r * 0.8, 0, Math.PI, TAU); X.fill(); if (p.cap) { X.fillStyle = "#c23b3b"; X.beginPath(); X.ellipse(x, y - r * 0.35, r * 0.88, r * 0.75, 0, Math.PI, TAU); X.fill(); X.fillRect(x - r * 0.95, y - r * 0.4, r * 1.9, r * 0.14); } } }));
+    },
+    mid(L, t) {
+      const sx = 9 * Math.sin(TAU * 0.5 * t - 0.3);
+      X.fillStyle = lin(0, 0, 40, 0, [[0, "#c89a2a"], [0.4, "#ffe08a"], [1, "#a77a16"]]); X.fillRect(250 + sx, -100, 34, 2200); X.fillRect(-100, 165, W + 200, 22);
+      for (let i = 0; i < 5; i++) { const x = 90 + i * 230 + sx, a = 0.16 * Math.sin(TAU * 0.5 * t - 0.9 - i * 0.35); X.save(); X.translate(x, 176); X.rotate(a); X.fillStyle = "#cfd3d6"; X.fillRect(-6, 0, 12, 130); X.lineWidth = 12; X.strokeStyle = "#e8eaec"; X.beginPath(); X.arc(0, 168, 38, 0, TAU); X.stroke(); X.restore(); }
+    },
+    back(L, t, sc) {
+      glow(sc.cx, sc.cy, 620, "#6f9be8", 0.3);
+      handBack(sc, L.skin, L.sleeve);
+    },
+    who(L, t, sc) {
+      return ({ hx: 860, hy: 1150, r: 132, side: 1, light: [sc.cx, sc.cy], hand: [sc.cx + 120, sc.cy + 330], coat: "#15181f", coatLit: "#3c4a6e", skin: "#5a3a2b", skinLit: "#a67a62", skinDark: "#2a1b14", collar: "#22262f",
+        hair: (P, r) => { X.fillStyle = "#0b0b0d"; X.beginPath(); X.ellipse(860, 1150 - r * 0.1, r * 0.86, r * 0.92, 0, Math.PI * 0.9, Math.PI * 2.1); X.fill(); X.fillStyle = "#1b1d24"; X.beginPath(); X.ellipse(860, 1150 + r * 0.25, r * 1.08, r * 0.95, 0, Math.PI * 1.05, Math.PI * 1.95); X.fill(); } });
+    },
+  },
+  { // 2 — свидание
+    T: 3.0, plunge: 1.15, swipe: 0.15, skin: SKIN.c, sleeve: "#3b2230",
+    screen: (L, t) => ({ cx: 690 + sway(L, t, 6, 0.42), cy: 1360 + sway(L, t, 6, 0.36, 1), w: 280, rot: -0.12 + sway(L, t, 0.014, 0.4) }),
+    bg(L, t) {
+      X.fillStyle = lin(0, 0, 0, H, [[0, "#1d0f0b"], [1, "#0b0605"]]); X.fillRect(-200, -200, W + 400, H + 400);
+      for (const l of LIGHTS2) glow(l.x, l.y, l.r * 2.4, "#ffb35c", l.a * (0.8 + 0.2 * Math.sin(t * 2 + l.x)));
+      X.strokeStyle = "rgba(255,190,120,.25)"; X.lineWidth = 3; X.beginPath(); X.moveTo(-50, 200); X.quadraticCurveTo(540, 420, 1130, 180); X.stroke();
+      personFront({ x: 560, y: 690, r: 112, skin: SKIN.a[0], skinLit: "#c4dcff", skinDark: "#5a3a2c", body: "#20242c", bodyLit: "#53607f", blink: (t % 2.7) < 0.12,
+        hair: (x, y, r) => { X.fillStyle = "#2a1a12"; X.beginPath(); X.ellipse(x, y - r * 0.28, r * 0.86, r * 0.78, 0, Math.PI, TAU); X.fill(); X.beginPath(); X.ellipse(x + r * 0.3, y - r * 0.7, r * 0.6, r * 0.32, 0.3, 0, TAU); X.fill(); } });
+      X.fillStyle = "#e9e1d6"; X.beginPath(); X.moveTo(-100, 1000); X.lineTo(W + 100, 1000); X.lineTo(W + 300, H + 200); X.lineTo(-300, H + 200); X.fill();
+      X.fillStyle = lit("rgba(60,30,20,.0)", "rgba(255,170,80,.35)", 380, 980, 700); X.fillRect(-100, 1000, W + 200, 900);
+    },
+    mid(L, t) {
+      const fl = 1 + 0.08 * Math.sin(t * 17) + 0.05 * Math.sin(t * 29 + 1);
+      X.fillStyle = "#f3ead8"; rr(352, 900, 56, 120, 8); X.fill(); X.fillStyle = "#3a2a1a"; X.fillRect(378, 880, 4, 22);
+      X.save(); X.translate(380, 878); X.scale(1, fl); X.fillStyle = lin(0, -70, 0, 0, [[0, "rgba(255,240,180,0)"], [0.4, "#ffd27a"], [1, "#ff8a2a"]]); X.beginPath(); X.moveTo(0, -70); X.quadraticCurveTo(22, -20, 0, 4); X.quadraticCurveTo(-22, -20, 0, -70); X.fill(); X.restore();
+      glow(380, 860, 520 * fl, "#ff9a40", 0.45);
+      for (const [gx, gy] of [[720, 905], [215, 950]]) { X.strokeStyle = "rgba(255,255,255,.55)"; X.lineWidth = 4; X.beginPath(); X.moveTo(gx - 38, gy - 110); X.quadraticCurveTo(gx - 40, gy - 20, gx, gy - 10); X.quadraticCurveTo(gx + 40, gy - 20, gx + 38, gy - 110); X.stroke(); X.fillStyle = "rgba(120,10,30,.8)"; X.beginPath(); X.moveTo(gx - 36, gy - 70); X.quadraticCurveTo(gx - 36, gy - 22, gx, gy - 14); X.quadraticCurveTo(gx + 36, gy - 22, gx + 36, gy - 70); X.fill(); X.fillRect(gx - 3, gy - 10, 6, 80); X.fillRect(gx - 30, gy + 68, 60, 6); }
+      X.fillStyle = "#c0263a"; for (let i = 0; i < 5; i++) { ell(865 + Math.cos(i * 1.3) * 16, 860 + Math.sin(i * 1.3) * 12, 20, 16, i); X.fill(); } X.strokeStyle = "#2f6a35"; X.lineWidth = 5; X.beginPath(); X.moveTo(865, 870); X.lineTo(870, 990); X.stroke(); X.fillStyle = "rgba(220,240,255,.35)"; rr(840, 940, 60, 80, 12); X.fill();
+    },
+    back(L, t, sc) { glow(sc.cx, sc.cy, 600, "#7aa2ff", 0.28); handBack(sc, L.skin, L.sleeve); },
+    who(L, t, sc) {
+      const hx = 225, hy = 1160;
+      return ({ hx, hy, r: 135, side: -1, light: [sc.cx, sc.cy], hand: [sc.cx - 60, sc.cy + 340], coat: "#2a1420", coatLit: "#6a4a70", skin: "#b07a62", skinLit: "#f0c6b4", skinDark: "#5b3a2c", rim: "rgba(255,170,110,.35)",
+        hair: (P, r) => { X.fillStyle = "#3a2216"; X.beginPath(); X.ellipse(hx, hy - r * 0.05, r * 0.9, r * 1.02, 0, 0, TAU); X.fill(); X.beginPath(); X.moveTo(hx - r * 0.8, hy); X.bezierCurveTo(hx - r * 1.1, hy + r * 1.6, hx + r * 0.2, hy + r * 2.4, hx + r * 0.7, hy + r * 2.6); X.lineTo(hx + r * 0.9, hy); X.fill(); ell(hx - r * 0.1, hy - r * 0.95, r * 0.42, r * 0.36); X.fill(); X.strokeStyle = "rgba(255,170,110,.35)"; X.lineWidth = 6; X.beginPath(); X.arc(hx, hy - r * 0.05, r * 0.9, -0.9, 0.5); X.stroke(); } });
+    },
+  },
+  { // 3 — вершина мира
+    T: 3.0, plunge: 1.15, swipe: 0.15, skin: SKIN.c, sleeve: "#1d5a63",
+    screen: (L, t) => ({ cx: 415 + sway(L, t, 6, 0.45), cy: 1345 + sway(L, t, 6, 0.38, 1), w: 270, rot: 0.1 + sway(L, t, 0.016, 0.35) }),
+    bg(L, t) {
+      X.fillStyle = lin(0, 0, 0, 1250, [[0, "#14204e"], [0.45, "#5a4c94"], [0.75, "#e0787a"], [0.9, "#ffa15a"], [1, "#ffd48a"]]); X.fillRect(-200, -200, W + 400, H + 400);
+      X.save(); X.globalCompositeOperation = "lighter"; for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI + t * 0.03; X.fillStyle = "rgba(255,200,140,.035)"; X.beginPath(); X.moveTo(260, 1080); X.arc(260, 1080, 2200, a, a + 0.09); X.fill(); } X.restore();
+      glow(260, 1080, 520, "#ffcf80", 0.85); X.fillStyle = "#fff4d6"; ell(260, 1080, 64, 64); X.fill();
+      const cols = ["#8b6fa8", "#5b4a86", "#2e2a5a"];
+      RIDGES.forEach((f, i) => { X.fillStyle = cols[i]; X.beginPath(); X.moveTo(-200, H); for (let x = -200; x <= W + 200; x += 20) X.lineTo(x, f(x)); X.lineTo(W + 200, H); X.fill();
+        if (i < 2) { X.fillStyle = `rgba(255,225,235,${0.55 - i * 0.15})`; for (let k = 0; k < 9; k++) { const cx = ((k * 190 + t * (14 + i * 10)) % 1500) - 200; ell(cx, 1190 + i * 110 + (k % 3) * 24, 180, 38); X.fill(); } } });
+      for (let i = 0; i < 4; i++) { const bx = 200 + i * 70 + t * 60, by = 700 + Math.sin(i * 2) * 50 + Math.sin(t * 2 + i) * 6, fl = Math.sin(t * 12 + i) * 8; X.strokeStyle = "rgba(40,30,60,.7)"; X.lineWidth = 4; X.beginPath(); X.moveTo(bx - 16, by - fl); X.lineTo(bx, by); X.lineTo(bx + 16, by - fl); X.stroke(); }
+    },
+    mid(L, t) { X.fillStyle = lin(0, 1500, 0, H, [[0, "#1c1934"], [1, "#0c0b18"]]); X.beginPath(); X.moveTo(-200, H + 100); X.lineTo(-200, 1640); X.lineTo(180, 1530); X.lineTo(420, 1600); X.lineTo(760, 1500); X.lineTo(1300, 1620); X.lineTo(1300, H + 100); X.fill(); X.strokeStyle = "rgba(255,170,120,.35)"; X.lineWidth = 5; X.beginPath(); X.moveTo(-200, 1640); X.lineTo(180, 1530); X.lineTo(420, 1600); X.stroke(); },
+    back(L, t, sc) { glow(sc.cx, sc.cy, 560, "#8fb6ff", 0.22); handBack(sc, L.skin, L.sleeve); },
+    who(L, t, sc) {
+      const hx = 865, hy = 1170, wind = Math.sin(t * 3.1) * 0.5 + Math.sin(t * 5.3) * 0.3;
+      return ({ hx, hy, r: 128, side: 1, light: [sc.cx, sc.cy], hand: [sc.cx + 110, sc.cy + 320], coat: "#16434c", coatLit: "#3f7f8a", skin: "#a8735b", skinLit: "#ffcfae", skinDark: "#5a3a2c", straps: "#0e1e24", rim: "rgba(255,190,130,.45)",
+        hair: (P, r) => { X.fillStyle = "#e0592a"; X.beginPath(); X.ellipse(hx, hy - r * 0.18, r * 0.9, r * 0.86, 0, Math.PI * 0.92, Math.PI * 2.08); X.fill(); X.fillStyle = "#b8441e"; X.fillRect(hx - r * 0.92, hy - r * 0.1, r * 1.84, r * 0.2); const px = hx + wind * 18, py = hy - r * 1.08; X.fillStyle = "#f2e6d0"; ell(px, py, r * 0.22, r * 0.22); X.fill(); } });
+    },
+  },
+  { // 4 — Луна
+    T: 3.0, plunge: 1.15, swipe: 0.15, skin: SKIN.glove, sleeve: "#d9dbe2",
+    screen: (L, t) => ({ cx: 705 + sway(L, t, 5, 0.3), cy: 1360 + sway(L, t, 5, 0.27, 1), w: 270, rot: -0.09 + sway(L, t, 0.012, 0.25) }),
+    bg(L, t) {
+      X.fillStyle = "#020309"; X.fillRect(-200, -200, W + 400, H + 400);
+      for (const s of STARS) { X.fillStyle = `rgba(255,255,255,${0.35 + 0.5 * (0.5 + 0.5 * Math.sin(s.p + t * s.f))})`; ell(s.x, s.y, s.r, s.r); X.fill(); }
+      const ex = 760, ey = 560, er = 250;
+      glow(ex, ey, er * 1.5, "#4aa3ff", 0.5);
+      X.save(); ell(ex, ey, er, er); X.clip();
+      X.fillStyle = lin(ex - er, ey - er, ex + er, ey + er, [[0, "#3d8fe0"], [1, "#0b2a5c"]]); X.fillRect(ex - er, ey - er, er * 2, er * 2);
+      const R = rng(42), rot = t * 14;
+      for (let i = 0; i < 9; i++) { const bx = ex - er + ((R() * 900 + rot) % 900) - 200, by = ey - er + R() * er * 2; X.fillStyle = i % 3 ? "#3f8a4a" : "#a88a5a"; ell(bx, by, 50 + R() * 90, 30 + R() * 60, R() * 3); X.fill(); }
+      for (let i = 0; i < 12; i++) { const bx = ex - er + ((R() * 900 + rot * 1.5) % 900) - 200, by = ey - er + R() * er * 2; X.fillStyle = "rgba(255,255,255,.7)"; ell(bx, by, 60 + R() * 80, 10 + R() * 18, R() * 0.6 - 0.3); X.fill(); }
+      X.fillStyle = lin(ex - er * 0.2, ey + er * 0.4, ex - er, ey + er, [[0, "rgba(0,0,10,0)"], [0.4, "rgba(0,0,10,.75)"], [1, "rgba(0,0,10,.95)"]]); X.fillRect(ex - er, ey - er, er * 2, er * 2);
+      X.restore();
+      X.save(); X.globalCompositeOperation = "lighter"; X.lineWidth = 10; X.strokeStyle = "rgba(120,190,255,.45)"; X.beginPath(); X.arc(ex, ey, er, -2.4, 0.9); X.stroke(); X.restore();
+      X.fillStyle = lin(0, 1160, 0, H, [[0, "#9a9aa0"], [0.3, "#6d6d73"], [1, "#2c2c31"]]); X.beginPath(); X.moveTo(-200, 1180); X.quadraticCurveTo(540, 1130, 1300, 1190); X.lineTo(1300, H + 200); X.lineTo(-200, H + 200); X.fill();
+      for (const c of CRATERS) { const sy = (c.y - 1150) / 770, rx = c.r * (0.6 + sy), ry = rx * 0.28 * (0.6 + sy); X.fillStyle = "rgba(30,30,35,.45)"; ell(c.x, c.y, rx, ry); X.fill(); X.strokeStyle = "rgba(220,220,230,.35)"; X.lineWidth = 3; X.beginPath(); X.ellipse(c.x, c.y + ry * 0.1, rx, ry, 0, 0.1, Math.PI - 0.1); X.stroke(); }
+    },
+    mid(L, t) { dust(540, 1500, 600, t * 0.4, 0.8, "rgba(230,230,240,"); },
+    back(L, t, sc) { glow(sc.cx, sc.cy, 560, "#8fb6ff", 0.3); handBack(sc, L.skin, L.sleeve); },
+    who(L, t, sc) {
+      const hx = 255, hy = 1150, r = 140;
+      return ({ hx, hy, r, side: -1, pre: () => { X.fillStyle = lin(hx - 260, hy, hx + 260, hy, [[0, "#9ea2ae"], [1, "#e3e5ec"]]); rr(hx - 250, hy + 40, 370, 420, 40); X.fill(); },
+        post: () => { X.fillStyle = "#8a8f9c"; rr(hx - 210, hy + 130, 120, 50, 10); X.fill(); X.fillStyle = "#e0472f"; ell(hx - 120, hy + 155, 10, 10); X.fill(); }, light: [sc.cx, sc.cy], hand: [sc.cx - 40, sc.cy + 330], coat: "#c9ccd6", coatLit: "#ffffff", skin: "#d7d9e0", skinLit: "#ffffff", skinDark: "#a2a6b2", rim: "rgba(150,200,255,.5)",
+        hair: (P, r) => { X.fillStyle = lit("#b4b8c4", "#ffffff", hx + 80, hy - 60, r * 1.5); ell(hx, hy, r * 1.02, r * 1.02); X.fill(); X.strokeStyle = "#8a8f9c"; X.lineWidth = 10; X.beginPath(); X.arc(hx, hy, r * 1.02, 0.4, 1.4); X.stroke(); X.fillStyle = "rgba(255,255,255,.6)"; ell(hx + r * 0.35, hy - r * 0.45, r * 0.26, r * 0.14, -0.6); X.fill(); } });
+    },
+  },
+  { // 5 — тебе 84
+    T: 4.8, plunge: 1.5, swipe: 0.25, skin: SKIN.old, sleeve: "#4b4239",
+    screen: (L, t) => ({ cx: 400 + sway(L, t, 4, 0.3), cy: 1350 + sway(L, t, 5, 0.25, 1), w: 290, rot: 0.08 + sway(L, t, 0.01, 0.22) }),
+    bg(L, t) {
+      X.fillStyle = lin(0, 0, 0, H, [[0, "#0b0c13"], [1, "#07070b"]]); X.fillRect(-200, -200, W + 400, H + 400);
+      X.save(); rr(60, 520, 360, 560, 8); X.clip(); X.fillStyle = lin(0, 520, 0, 1080, [[0, "#13203a"], [1, "#0c1322"]]); X.fillRect(60, 520, 360, 560);
+      X.strokeStyle = "rgba(170,200,240,.35)"; X.lineWidth = 2; for (const d of RAIN) { const y = 520 + ((d.y * 560 + t * 900 * d.s) % 620) - 40, x = 60 + d.x * 360; X.beginPath(); X.moveTo(x, y); X.lineTo(x - 6, y + d.l); X.stroke(); }
+      for (const d of DROPS) { X.fillStyle = "rgba(190,215,255,.25)"; ell(60 + d.x * 360, 520 + ((d.y * 560 + t * 30 * d.r) % 560), d.r, d.r * 1.2); X.fill(); }
+      X.restore(); X.lineWidth = 14; X.strokeStyle = "#191a24"; rr(60, 520, 360, 560, 8); X.stroke(); X.fillRect(232, 520, 14, 560);
+      const fr = [[520, 560, 190, 150, 0], [745, 520, 150, 190, 1], [560, 760, 150, 120, 2], [760, 750, 200, 140, 3]];
+      fr.forEach(([x, y, w, h, k]) => { X.fillStyle = "#2a2219"; rr(x - 10, y - 10, w + 20, h + 20, 4); X.fill(); X.fillStyle = "#3d352b"; X.fillRect(x, y, w, h); X.fillStyle = "rgba(20,16,12,.8)";
+        const heads = [[2, [0.38, 0.62]], [1, [0.5]], [4, [0.2, 0.4, 0.62, 0.82]], [2, [0.4, 0.6]]][k][1];
+        heads.forEach((hx, i) => { const s = k === 2 ? 0.7 : 1, hr = Math.min(w, h) * 0.13 * (i > 1 && k === 2 ? 0.7 : s); ell(x + w * hx, y + h * 0.42, hr, hr * 1.15); X.fill(); X.beginPath(); X.ellipse(x + w * hx, y + h, hr * 1.9, hr * 2.3, 0, Math.PI, TAU); X.fill(); }); });
+    },
+    mid(L, t) { X.fillStyle = lin(0, 960, 0, 1500, [[0, "#17131a"], [1, "#0b090d"]]); X.fillRect(800, 960, 400, 600); X.fillStyle = "#241d26"; X.fillRect(800, 952, 400, 14); clock(825, 820, 240, t + 0.3); },
+    back(L, t, sc) {
+      X.fillStyle = lin(0, 1500, 0, H, [[0, "#3a1418"], [1, "#1a0a0c"]]); X.beginPath(); X.moveTo(1180, 1180); X.bezierCurveTo(1000, 1250, 990, 1500, 1060, 2000); X.lineTo(1180, 2000); X.fill();
+      glow(sc.cx, sc.cy, 640, "#7f9fe0", 0.3); handBack(sc, L.skin, L.sleeve);
+    },
+    who(L, t, sc) {
+      const hx = 845, hy = 1160;
+      return ({ hx, hy, r: 126, side: 1, breath: 1 + 0.012 * Math.sin(t * 1.6), light: [sc.cx, sc.cy], hand: [sc.cx + 120, sc.cy + 330], coat: "#3e362f", coatLit: "#7b7266", skin: "#b48d7a", skinLit: "#f3d6c8", skinDark: "#6d4f42", collar: "#5c5248",
+        hair: (P, r) => {
+          X.fillStyle = "rgba(255,255,255,.13)"; ell(hx + r * 0.15, hy - r * 0.55, r * 0.34, r * 0.2, -0.3); X.fill();
+          X.save(); ell(hx, hy, r * 0.83, r * 0.99); X.clip();
+          X.beginPath(); X.moveTo(hx - r, hy + r * 1.2); X.lineTo(hx - r, hy - r * 0.02);
+          for (let i = 0; i <= 24; i++) { const x = hx - r + (i / 24) * 2 * r, y = hy + r * 0.1 - Math.sin(i / 24 * Math.PI) * r * 0.08 + (i % 2 ? r * 0.05 : -r * 0.02); X.lineTo(x, y); }
+          X.lineTo(hx + r, hy + r * 1.2); X.closePath(); X.shadowColor = "#d8d4cc"; X.shadowBlur = 10; X.fillStyle = lin(0, hy, 0, hy + r, [[0, "#d9d5ce"], [1, "#a39e96"]]); X.fill(); X.shadowBlur = 0;
+          X.strokeStyle = "rgba(120,115,108,.45)"; X.lineWidth = 2; for (let i = 0; i < 22; i++) { const x = hx - r * 0.8 + i * r * 0.075; X.beginPath(); X.moveTo(x, hy + r * 0.2); X.quadraticCurveTo(x + 6, hy + r * 0.5, x + 2, hy + r * 0.9); X.stroke(); }
+          X.restore();
+          X.strokeStyle = "#8f959e"; X.lineWidth = 5; X.beginPath(); X.moveTo(hx - r * 0.72, hy - r * 0.08); X.lineTo(hx - r * 1.08, hy + r * 0.02); X.stroke(); } });
+    },
+  },
+];
+// zoom speed: equal log-zoom rate in every world while dwelling, cosine bump while plunging
+LEVELS.forEach((L, k) => { const s = L.screen(L, -10).w / W; L.a = 0.06 / Math.log(1 / s); L.start = LEVELS.slice(0, k).reduce((a, b) => a + b.T, 0); });
+function fz(L, tau) { const w = L.plunge, x = clamp(tau - (L.T - w), 0, w), I = 0.5 * x - 0.5 * w / TAU * Math.sin(TAU * x / w), b = (1 - L.a * L.T) / (w / 2); return clamp(L.a * tau + b * I, 0, 1); }
+
+/* ---------- render a world (recursive through its screen) ---------- */
+const PIX = (() => { const c = document.createElement("canvas"); c.width = 27; c.height = 27; const g = c.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, 27, 27); ["#ff2a2a", "#2aff4a", "#3a6bff"].forEach((col, i) => { g.fillStyle = col; g.fillRect(i * 9 + 1, 1, 7, 23); }); return c; })();
+function layer(A, blur, fn) { // blur once per layer (offscreen), never per shape
+  if (blur > 0.3) { const prev = X; X = OX; X.setTransform(1, 0, 0, 1, 0, 0); X.clearRect(0, 0, W, H); X.save(); setT(A); fn(); X.restore(); X = prev;
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.filter = `blur(${blur.toFixed(2)}px)`; X.drawImage(OC, 0, 0); X.restore(); }
+  else { X.save(); setT(A); fn(); X.restore(); }
+}
+function drawLevel(k, tau, A, f, base, depth) {
+  k = k % LEVELS.length;
+  const L = LEVELS[k % LEVELS.length], sc = L.screen(L, tau), M = screenMap(sc);
+  const V = d => base ? comp(A, viewMap(M, f, d)) : A;
+  const focus = base ? sm(0.08, 0.65, tau) : 0, plunging = tau > L.T - L.plunge;
+  layer(V(0.5), focus * 7, () => L.bg(L, tau));
+  layer(V(0.78), focus * 3, () => L.mid(L, tau));
+  const A1 = V(1), who = L.who ? L.who(L, tau, sc) : null;
+  const body = fn => { if (who && who.breath) { X.save(); X.translate(who.hx, who.hy + 300); X.scale(1, who.breath); X.translate(-who.hx, -who.hy - 300); fn(); X.restore(); } else fn(); };
+  X.save(); setT(A1); L.back(L, tau, sc); if (who) body(() => personBack(who, "arm")); phoneBody(sc); X.restore();
+  // screen content (clip in world coordinates)
+  X.save(); setT(A1); inScreen(sc, (w, h) => { rr(-w / 2, -h / 2, w, h, w * 0.09); X.clip(); });
+  const SA = comp(A1, M), px = scaleOf(SA) * W;
+  X.setTransform(1, 0, 0, 1, 0, 0);
+  const sw = L.swipe, u = clamp((tau - sw) / 0.5), off = tau < sw ? 0 : -H * (u >= 1 ? 1 : spring(u * 0.5, 11, 0.62));
+  const offs = Math.min(off, 0);
+  if (offs > -H + 0.5) { setT(comp(SA, trn(0, offs))); feedCard(k, tau); }
+  if (offs < -0.5) {
+    if (px > 5 && depth > 0) drawLevel(k + 1, tau - L.T, comp(SA, trn(0, offs + H)), 0, false, depth - 1);
+    else { setT(comp(SA, trn(0, offs + H))); X.fillStyle = "#223"; X.fillRect(0, 0, W, H); }
+  }
+  setT(SA); feedUI(1 - sm(L.T - L.plunge * 0.95, L.T - L.plunge * 0.35, tau));
+  if (base && plunging) { const x = clamp((tau - (L.T - L.plunge)) / L.plunge), a = Math.pow(Math.sin(Math.PI * clamp((x - 0.25) / 0.7)), 2) * 0.55;
+    if (a > 0.005) { X.save(); X.globalCompositeOperation = "multiply"; X.globalAlpha = a; X.fillStyle = X.createPattern(PIX, "repeat"); X.fillRect(0, 0, W, H); X.restore(); } }
+  X.restore();
+  X.save(); setT(A1); island(sc, 1 - sm(L.T - L.plunge * 0.6, L.T - L.plunge * 0.25, tau));
+  const gl = base ? sm(L.T - L.plunge * 0.7, L.T - L.plunge * 0.35, tau) * (1 - sm(L.T - L.plunge * 0.35, L.T - L.plunge * 0.1, tau)) : 0;
+  X.globalAlpha = 1; screenGlass(sc, gl * 1.4);
+  if (plunging) clipOut(sc); // nothing may cover the screen while we dive into it (seamless hand-off)
+  handFront(sc, L.skin, thumbAt(L, tau));
+  if (who) body(() => { personBack(who, "body"); if (who.post) who.post(); });
+  X.restore();
+  if (base) { X.save(); setT(V(1.6)); dust(sc.cx, sc.cy - 200, 520, tau, 1 - sm(L.T - L.plunge, L.T - L.plunge * 0.4, tau)); X.restore(); }
+}
+
+/* ---------- captions (frame-locked) ---------- */
+const CAPS = [
+  [0.04, 1.45, ["Ещё одно видео —", "и спать."], ["спать."]],
+  [2.55, 4.45, ["В метро."], ["метро."]],
+  [5.55, 7.45, ["На свидании."], ["свидании."]],
+  [8.55, 10.45, ["На вершине", "мира."], ["мира."]],
+  [11.55, 13.45, ["На Луне."], ["Луне."]],
+  [14.6, 16.55, ["А потом", "тебе 84."], ["84."]],
+  [16.85, 18.85, ["Ты уже", "на втором круге."], ["втором", "круге."]],
+];
+const WORDS = []; // word pop times (sound)
+function capLayout() { CAPS.forEach(c => { let i = 0; c.words = []; c[2].forEach((line, li) => line.split(" ").forEach(wd => c.words.push({ wd, li, at: c[0] + 0.13 * i++ }))); c.words.forEach(w => WORDS.push(w.at)); }); }
+function drawCaps(t) {
+  X.setTransform(1, 0, 0, 1, 0, 0); X.textBaseline = "alphabetic";
+  for (const c of CAPS) {
+    if (t < c[0] - 0.01 || t > c[1] + 0.35) continue;
+    const fs = c[2].some(l => l.length > 14) ? 92 : 104; X.font = `900 ${fs}px 'Golos Text'`;
+    const out = sm(c[1], c[1] + 0.3, t), lines = c[2];
+    lines.forEach((line, li) => {
+      const ws = c.words.filter(w => w.li === li), sp = X.measureText(" ").width, widths = ws.map(w => X.measureText(w.wd).width), tot = widths.reduce((a, b) => a + b, 0) + sp * (ws.length - 1);
+      let x = W / 2 - tot / 2; const y = 330 + li * fs * 1.12 - out * 60;
+      ws.forEach((w, i) => {
+        const p = spring((t - w.at) * 1.0, 14, 0.5); if (t < w.at) { x += widths[i] + sp; return; }
+        const key = c[3].includes(w.wd), s = 0.55 + 0.45 * p, cx = x + widths[i] / 2;
+        X.save(); X.translate(cx, y); X.scale(s, s); X.rotate((1 - p) * -0.12); X.globalAlpha = clamp((t - w.at) / 0.08) * (1 - out);
+        X.lineJoin = "round"; X.lineWidth = 18; X.strokeStyle = "rgba(0,0,0,.55)"; X.strokeText(w.wd, -widths[i] / 2, 6);
+        X.fillStyle = key ? "#ffd23f" : "#ffffff"; X.shadowColor = "rgba(0,0,0,.6)"; X.shadowBlur = 24; X.fillText(w.wd, -widths[i] / 2, 0);
+        X.restore(); x += widths[i] + sp;
+      });
+    });
+  }
+}
+
+/* ---------- camera (periodic, never still) + grain ---------- */
+function camera(t) {
+  const ph = TAU * t / DUR, s = 1.04;
+  let last = 0; for (const L of LEVELS) if (t >= L.start) last = L.start;
+  const ta = t - last, acc = 0.03 * Math.exp(-ta / 0.16) * Math.sin(Math.PI * ta / 0.22);
+  const sc = s * (1 + acc), rot = 0.006 * Math.sin(ph * 3 + 0.4) + 0.004 * Math.sin(ph * 7);
+  const dx = 7 * Math.sin(ph * 2 + 1) + 4 * Math.sin(ph * 5), dy = 6 * Math.sin(ph * 3) + 3 * Math.sin(ph * 8 + 2);
+  const w = cpol(sc, rot); return { w, t: cs([W / 2 + dx, H / 2 + dy], cm(w, [W / 2, H / 2])) };
+}
+const GRAIN = [0, 1, 2].map(i => { const c = document.createElement("canvas"); c.width = 540; c.height = 960; const g = c.getContext("2d"), d = g.createImageData(540, 960), R = rng(300 + i); for (let p = 0; p < d.data.length; p += 4) { const v = 128 + (R() - 0.5) * 160; d.data[p] = d.data[p + 1] = d.data[p + 2] = v; d.data[p + 3] = 255; } g.putImageData(d, 0, 0); return c; });
+
+function frame(t) {
+  t = ((t % DUR) + DUR) % DUR;
+  let k = 0; while (k < LEVELS.length - 1 && t >= LEVELS[k + 1].start) k++;
+  const L = LEVELS[k], tau = t - L.start;
+  X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = 1; X.globalCompositeOperation = "source-over"; X.filter = "none";
+  X.fillStyle = "#000"; X.fillRect(0, 0, W, H);
+  drawLevel(k, tau, camera(t), fz(L, tau), true, 3);
+  X.setTransform(1, 0, 0, 1, 0, 0);
+  const v = X.createRadialGradient(W / 2, H * 0.48, H * 0.3, W / 2, H / 2, H * 0.72); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.5)"); X.fillStyle = v; X.fillRect(0, 0, W, H);
+  X.save(); X.globalCompositeOperation = "overlay"; X.globalAlpha = 0.09; X.drawImage(GRAIN[Math.floor(t * 30) % 3], 0, 0, W, H); X.restore();
+  drawCaps(t);
+}
+
+/* ================= SOUND (offline, one event list, circular for a seamless loop) ================= */
+async function renderAudio() {
+  const SR = 48000, P = DUR, ctx = new OfflineAudioContext(2, Math.ceil(SR * (P * 2 + 1)), SR);
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.2; comp.connect(ctx.destination);
+  const master = ctx.createGain(); master.gain.value = 0.7; master.connect(comp);
+  const R = rng(9);
+  const nbuf = (dur, col) => { const n = Math.ceil(dur * SR), b = ctx.createBuffer(1, n, SR), d = b.getChannelData(0); let l = 0, b0 = 0, b1 = 0, b2 = 0; for (let i = 0; i < n; i++) { const w = R() * 2 - 1; if (col === "brown") { l = (l + 0.02 * w) / 1.02; d[i] = l * 3.5; } else if (col === "pink") { b0 = 0.99765 * b0 + w * 0.099; b1 = 0.963 * b1 + w * 0.2965; b2 = 0.57 * b2 + w * 1.0527; d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; } else d[i] = w; } return b; };
+  const NB = { white: nbuf(4, "white"), pink: nbuf(6, "pink"), brown: nbuf(6, "brown") };
+  const ir = ctx.createBuffer(2, SR * 3, SR); for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (R() * 2 - 1) * Math.pow(1 - i / d.length, 3.2); }
+  const verb = ctx.createConvolver(); verb.buffer = ir; const vg = ctx.createGain(); vg.gain.value = 0.5; verb.connect(vg); vg.connect(master);
+  const dl = ctx.createDelay(1); dl.delayTime.value = 0.45; const fb = ctx.createGain(); fb.gain.value = 0.38; const dlf = ctx.createBiquadFilter(); dlf.type = "lowpass"; dlf.frequency.value = 2500; dl.connect(dlf); dlf.connect(fb); fb.connect(dl); dlf.connect(master); dlf.connect(verb);
+  const bus = (g, send = 0.2) => { const n = ctx.createGain(); n.gain.value = g; n.connect(master); if (send) { const s = ctx.createGain(); s.gain.value = send; n.connect(s); s.connect(verb); } return n; };
+  const music = bus(1.5, 0.35), sfx = bus(1, 0.18), amb = bus(0.6, 0.1);
+  const filt = (type, f, q) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; };
+  const pan = (p) => { const n = ctx.createStereoPanner(); n.pan.value = p; return n; };
+  const route = (nodes, dest) => { for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1]); nodes[nodes.length - 1].connect(dest); return nodes[0]; };
+  const noise = (t, dur, col, chainNodes, dest, gEnv) => { const s = ctx.createBufferSource(); s.buffer = NB[col]; s.loop = true; const g = ctx.createGain(); g.gain.value = 0; route([s, ...chainNodes, g], dest); gEnv(g.gain); s.start(t, R() * 2); s.stop(t + dur + 0.1); return g; };
+  const tone = (t, type, f0, f1, dur, peak, dest, att = 0.005, rel) => { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur); const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + (rel || dur)); o.connect(g); g.connect(dest); o.start(t); o.stop(t + (rel || dur) + 0.05); };
+  const N = f => 440 * Math.pow(2, (f - 69) / 12);
+  const CH = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60], [50, 53, 57], [52, 56, 59]]; // Am F C G Am F Dm E
+  const bar = 2.4, beat = 0.6;
+  function sched(o) {
+    // pad
+    CH.forEach((ch, b) => { const t0 = o + b * bar, quiet = b >= 6, lvl = quiet ? 0.018 : 0.028; ch.forEach(m => [0.996, 1.004].forEach((d, j) => { const os = ctx.createOscillator(); os.type = "sawtooth"; os.frequency.value = N(m - 12) * d; const lp = filt("lowpass", quiet ? 600 : 1100, 0.6), g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(lvl, t0 + 0.5); const end = t0 + bar + (b === 7 ? -0.2 : 0.25); g.gain.setValueAtTime(lvl, Math.max(t0 + 0.6, end - 0.5)); g.gain.exponentialRampToValueAtTime(0.0001, end); route([os, lp, pan(j ? 0.35 : -0.35), g], music); os.start(t0); os.stop(end + 0.1); })); });
+    // arp (8ths) + bass + kick in the middle
+    for (let b = 0; b < 6; b++) { const ch = CH[b], pat = [0, 1, 2, 1, 2, 0, 2, 1]; for (let i = 0; i < 8; i++) { const t = o + b * bar + i * beat / 2, m = ch[pat[i]] + 12 + (i === 4 ? 12 : 0), p = ctx.createStereoPanner(); p.pan.value = (i % 2 ? 0.3 : -0.3); p.connect(music); p.connect(dl); tone(t, "triangle", N(m), 0, 0.32, 0.07, p, 0.004); tone(t, "sine", N(m + 12), 0, 0.18, 0.025, p, 0.002); }
+      if (b >= 1) { tone(o + b * bar, "sine", N(ch[0] - 24), 0, 1.15, 0.22, music, 0.02); tone(o + b * bar + 1.2, "sine", N(ch[0] - 24), 0, 1.1, 0.18, music, 0.02); for (let q = 0; q < 4; q++) { const t = o + b * bar + q * beat; if (q % 2 === 0) tone(t, "sine", 120, 42, 0.32, 0.5, music, 0.002); else noise(t, 0.08, "white", [filt("highpass", 7000)], music, g => { g.setValueAtTime(0.06, t); g.exponentialRampToValueAtTime(0.0001, t + 0.07); }); } } }
+    // events per world
+    LEVELS.forEach((L, k) => {
+      const a = o + L.start, nxt = a + L.T, pst = nxt - L.plunge;
+      // arrival hit (the loop seam is the biggest)
+      const big = k === 0; tone(a, "sine", big ? 90 : 70, 34, big ? 1.6 : 0.9, big ? 0.95 : 0.55, sfx, 0.003);
+      noise(a, 0.3, "white", [filt("lowpass", big ? 5000 : 3000)], sfx, g => { g.setValueAtTime(big ? 0.5 : 0.25, a); g.exponentialRampToValueAtTime(0.0001, a + (big ? 0.28 : 0.15)); });
+      if (big) { tone(a, "triangle", N(45), 0, 2.5, 0.15, music, 0.01); tone(a, "sine", N(69), 0, 2.2, 0.06, music, 0.01); }
+      // tap + swish (swipe)
+      const s0 = a + L.swipe; tone(s0, "sine", 2400, 1800, 0.03, 0.08, sfx, 0.001);
+      noise(s0, 0.35, "pink", [filt("bandpass", 2200, 0.8), pan(0.2)], sfx, g => { g.setValueAtTime(0.0001, s0); g.exponentialRampToValueAtTime(0.35, s0 + 0.12); g.exponentialRampToValueAtTime(0.0001, s0 + 0.33); });
+      tone(s0 + 0.24, "sine", 520, 780, 0.08, 0.06, sfx, 0.002);
+      // plunge whoosh into the screen + glass glint
+      const bp = filt("bandpass", 300, 1.2); bp.frequency.setValueAtTime(250, pst); bp.frequency.exponentialRampToValueAtTime(2600, nxt - L.plunge * 0.3); bp.frequency.exponentialRampToValueAtTime(700, nxt);
+      noise(pst, L.plunge + 0.1, "pink", [bp, filt("lowpass", 8000)], sfx, g => { g.setValueAtTime(0.0001, pst); g.exponentialRampToValueAtTime(k === 5 ? 0.8 : 0.6, nxt - L.plunge * 0.3); g.exponentialRampToValueAtTime(k === 5 ? 0.0001 : 0.05, nxt - (k === 5 ? 0.16 : 0.02)); g.linearRampToValueAtTime(0, nxt); });
+      const gt = nxt - L.plunge * 0.45; [N(88), N(95), N(100)].forEach((f, i) => tone(gt + i * 0.04, "sine", f, 0, 0.5, 0.025, sfx, 0.002));
+      // ambience of each world
+      const ad = L.T, aEnv = (lvl) => g => { g.setValueAtTime(0, a); g.linearRampToValueAtTime(lvl, a + 0.25); g.setValueAtTime(lvl, nxt - 0.5); g.linearRampToValueAtTime(0, nxt + 0.2); };
+      if (k === 0) { noise(a, ad + 0.3, "brown", [filt("lowpass", 300)], amb, aEnv(0.25)); }
+      if (k === 1) { noise(a, ad + 0.3, "brown", [filt("lowpass", 220)], amb, aEnv(0.9)); noise(a, ad + 0.3, "pink", [filt("bandpass", 900, 0.7)], amb, aEnv(0.08)); for (let c = 0.3; c < ad; c += 0.9) { tone(a + c, "sine", 90, 50, 0.12, 0.35, amb, 0.002); tone(a + c + 0.16, "sine", 85, 48, 0.12, 0.28, amb, 0.002); } }
+      if (k === 2) { noise(a, ad + 0.3, "pink", [filt("bandpass", 600, 0.6)], amb, aEnv(0.12)); [0.7, 1.6, 2.3].forEach(c => { tone(a + c, "sine", 2900, 0, 0.5, 0.03, amb, 0.001); tone(a + c, "sine", 4100, 0, 0.35, 0.02, amb, 0.001); }); }
+      if (k === 3) { const bpw = filt("bandpass", 500, 0.5); bpw.frequency.setValueAtTime(400, a); bpw.frequency.linearRampToValueAtTime(900, a + 1.5); bpw.frequency.linearRampToValueAtTime(450, nxt); noise(a, ad + 0.3, "pink", [bpw], amb, aEnv(0.5)); [0.9, 1.25].forEach(c => tone(a + c, "sine", 3400, 4600, 0.09, 0.03, amb, 0.004)); }
+      if (k === 4) { tone(a, "sine", 41, 0, ad, 0.05, amb, 0.5); [0.7, 2.0].forEach(c => { tone(a + c, "sine", 2525, 0, 0.25, 0.04, amb, 0.003); }); }
+      if (k === 5) { noise(a, ad + 0.1, "white", [filt("highpass", 1800), filt("lowpass", 6500)], amb, g => { g.setValueAtTime(0, a); g.linearRampToValueAtTime(0.035, a + 0.4); g.setValueAtTime(0.035, nxt - 0.6); g.linearRampToValueAtTime(0, nxt - 0.17); });
+        for (let c = 0.3; c < ad - 0.3; c += 1.0) { tone(a + c, "square", 3200, 0, 0.012, 0.03, amb, 0.0005); tone(a + c + 0.5, "square", 2600, 0, 0.012, 0.022, amb, 0.0005); }
+        [1.1, 2.0, 2.9].forEach(c => { tone(a + c, "sine", 62, 40, 0.2, 0.3, amb, 0.004); tone(a + c + 0.22, "sine", 58, 38, 0.18, 0.2, amb, 0.004); });
+        noise(nxt - 1.5, 1.4, "white", [filt("highpass", 4000)], sfx, g => { g.setValueAtTime(0.0001, nxt - 1.5); g.exponentialRampToValueAtTime(0.25, nxt - 0.17); g.setValueAtTime(0, nxt - 0.16); }); }
+    });
+    WORDS.forEach(w => tone(o + w, "sine", 1300, 1700, 0.05, 0.03, sfx, 0.002));
+  }
+  sched(0); sched(P);
+  const buf = await ctx.startRendering(), n = Math.round(P * SR), out = new AudioBuffer({ length: n, numberOfChannels: 2, sampleRate: SR });
+  for (let c = 0; c < 2; c++) out.copyToChannel(buf.getChannelData(c).subarray(n, 2 * n), c);
+  return out;
+}
+function wavB64(buf) {
+  const ch = 2, n = buf.length, dv = new DataView(new ArrayBuffer(44 + n * ch * 2)); let p = 0;
+  const w = s => { for (const c of s) dv.setUint8(p++, c.charCodeAt(0)); }, u32 = v => { dv.setUint32(p, v, true); p += 4; }, u16 = v => { dv.setUint16(p, v, true); p += 2; };
+  w("RIFF"); u32(36 + n * ch * 2); w("WAVE"); w("fmt "); u32(16); u16(1); u16(ch); u32(48000); u32(48000 * ch * 2); u16(ch * 2); u16(16); w("data"); u32(n * ch * 2);
+  const d = [buf.getChannelData(0), buf.getChannelData(1)]; for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { const v = Math.max(-1, Math.min(1, d[c][i])); dv.setInt16(p, v < 0 ? v * 0x8000 : v * 0x7FFF, true); p += 2; }
+  const b = new Uint8Array(dv.buffer); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s);
+}
+
+capLayout();
+window.__duration = DUR;
+window.__seek = t => frame(t);
+window.__audioWav = async () => wavB64(await renderAudio());
+window.__ready = document.fonts.ready;
+const q = new URLSearchParams(location.search);
+document.fonts.ready.then(() => {
+  if (q.has("t")) frame(+q.get("t"));
+  else { const t0 = performance.now(); const loop = () => { frame((performance.now() - t0) / 1000); requestAnimationFrame(loop); }; loop(); }
+});
+</script>
+</body></html>

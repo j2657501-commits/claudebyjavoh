@@ -1,0 +1,6 @@
+_frames/
+audio.raw.wav
+audio.wav
+audio.window.wav
+*.render.json
+render.log
