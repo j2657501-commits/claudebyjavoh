@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const {
   Document, Packer, Paragraph, TextRun, FootnoteReferenceRun, AlignmentType,
-  HeadingLevel, Footer, PageNumber, TabStopType, LeaderType, PageBreak, ExternalHyperlink,
+  HeadingLevel, Footer, PageNumber, TabStopType, LeaderType, PageBreak, ExternalHyperlink, ImageRun,
 } = require('docx');
 
 function linked(text, size) {
@@ -123,7 +123,9 @@ const c = (text, opts = {}) => new Paragraph({
 });
 const title = [
   c('ТАШКЕНТСКИЙ ГОСУДАРСТВЕННЫЙ ЮРИДИЧЕСКИЙ УНИВЕРСИТЕТ', { bold: true }),
-  c('ВТОРАЯ ПРОМЕЖУТОЧНАЯ КОНТРОЛЬНАЯ РАБОТА ПК-2', { bold: true, before: 2400 }),
+  new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 360, after: 0 },
+    children: [new ImageRun({ type: 'png', data: fs.readFileSync(path.join(__dirname, 'logo.png')), transformation: { width: 170, height: 170 } })] }),
+  c('ВТОРАЯ ПРОМЕЖУТОЧНАЯ КОНТРОЛЬНАЯ РАБОТА ПК-2', { bold: true, before: 600 }),
   c('по модулю «Право международных договоров»', { after: 360 }),
   c('на тему:'),
   c('КРИЗИС МЕЖДУНАРОДНОГО ПРАВОПОРЯДКА, ОСНОВАННОГО НА ПРАВИЛАХ: УТРАЧИВАЕТ ЛИ МЕЖДУНАРОДНОЕ ПРАВО СВОЮ ЮРИДИЧЕСКУЮ СИЛУ И АВТОРИТЕТ В УСЛОВИЯХ ГЕОПОЛИТИЧЕСКОГО СОПЕРНИЧЕСТВА ВЕЛИКИХ ДЕРЖАВ?', { bold: true, after: 1400 }),
@@ -132,7 +134,7 @@ const title = [
   c('Проверил: учитель по модулю', { align: AlignmentType.RIGHT, before: 240 }),
   c('«Право международных договоров»', { align: AlignmentType.RIGHT }),
   c('Толибов Азизбек Толибович', { align: AlignmentType.RIGHT }),
-  c('Ташкент – 2026', { before: 1800 }),
+  c('Ташкент – 2026', { before: 2600 }),
 ];
 
 // Table of contents (page numbers filled in on the second pass)
