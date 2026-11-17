@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds ielts/IELTS_4_Skills.html from the source files in ielts/src."""
-import glob, html, os, re
+import glob, html, os, re, shutil
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
@@ -426,6 +426,18 @@ def main():
     #    download links do nothing there, so they are dropped)
     web = re.sub(r"<a class='dl'[^>]*>mp3</a>", "", head + body.replace("{{AUDIONOTE}}", ""))
     open(os.path.join(ROOT, "web", "index.html"), "w", encoding="utf-8").write(web)
+    # 3) public website (GitHub Pages serves the repository's docs/ folder)
+    site = os.path.join(os.path.dirname(ROOT), "docs")
+    os.makedirs(os.path.join(site, "audio"), exist_ok=True)
+    open(os.path.join(site, "index.html"), "w", encoding="utf-8").write(
+        "<!doctype html>\n<html lang=\"ru\">\n<head>\n<meta charset=\"utf-8\">\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n"
+        + head + "</head>\n<body>\n" + body.replace("{{AUDIONOTE}}", "") + "</body>\n</html>\n")
+    open(os.path.join(site, ".nojekyll"), "w").close()
+    for f in glob.glob(os.path.join(ROOT, "audio", "*.mp3")):
+        dst = os.path.join(site, "audio", os.path.basename(f))
+        if not os.path.exists(dst) or os.path.getsize(dst) != os.path.getsize(f):
+            shutil.copyfile(f, dst)
     print(f"reading passages: {nr}, reading questions: {nq}, listening: {nl}")
     print(f"output: {OUT} ({os.path.getsize(OUT)//1024} KB)")
     for e in errors:
