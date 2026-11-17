@@ -4,8 +4,22 @@ const fs = require('fs');
 const path = require('path');
 const {
   Document, Packer, Paragraph, TextRun, FootnoteReferenceRun, AlignmentType,
-  HeadingLevel, Footer, PageNumber, TabStopType, LeaderType, PageBreak,
+  HeadingLevel, Footer, PageNumber, TabStopType, LeaderType, PageBreak, ExternalHyperlink,
 } = require('docx');
+
+function linked(text, size) {
+  const out = [];
+  const parts = text.split(/(https?:\/\/\S+)/);
+  for (const p of parts) {
+    if (!p) continue;
+    if (/^https?:\/\//.test(p)) {
+      out.push(new ExternalHyperlink({ link: p, children: [new TextRun({ text: p, font: FONT, size, color: '1F4E99', underline: {} })] }));
+    } else {
+      out.push(new TextRun({ text: p, font: FONT, size }));
+    }
+  }
+  return out;
+}
 
 const out = process.argv[2] || 'out.docx';
 const pages = process.argv[3] && fs.existsSync(process.argv[3]) ? JSON.parse(fs.readFileSync(process.argv[3], 'utf8')) : {};
@@ -37,9 +51,9 @@ function runs(text) {
       const t = p.slice(2, -2).trim();
       footnotes[fnId] = {
         children: [new Paragraph({
-          alignment: AlignmentType.JUSTIFIED,
+          alignment: AlignmentType.LEFT,
           spacing: { line: 240, before: 0, after: 0 },
-          children: [new TextRun({ text: ' ' + t, font: FONT, size: FN_SZ })],
+          children: linked(' ' + t, FN_SZ),
         })],
       };
       res.push(new FootnoteReferenceRun(fnId));
@@ -78,10 +92,10 @@ for (const f of files) {
     } else if (line.startsWith('~ ')) {
       bibNo += 1;
       body.push(new Paragraph({
-        alignment: AlignmentType.JUSTIFIED,
+        alignment: AlignmentType.LEFT,
         indent: { firstLine: INDENT },
         spacing: { line: LINE, before: 0, after: 0 },
-        children: [new TextRun({ text: `${bibNo}. ` + line.slice(2), font: FONT, size: SZ })],
+        children: linked(`${bibNo}. ` + line.slice(2), SZ),
       }));
     } else if (line.startsWith('- ')) {
       body.push(new Paragraph({
