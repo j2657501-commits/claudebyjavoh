@@ -46,7 +46,7 @@ button:hover{border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
 .tabs a:hover{background:var(--soft)}
 .tabs a.on{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
 .search{flex:0 1 300px;min-width:150px}
-.search input{width:100%;font:15px var(--ui);padding:8px 12px 8px 34px;border:1px solid var(--line);border-radius:9px;background:var(--bg) no-repeat 11px 50%/15px;color:var(--ink);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a96a8' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E")}
+.search input{width:100%;font:15px var(--ui);padding:8px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink)}
 .ov{display:flex;align-items:center;gap:8px;font:700 13px var(--ui);color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;min-width:60px}
 .bar i{display:block;height:100%;width:0;background:var(--acc);border-radius:inherit;transition:width .3s}
@@ -234,7 +234,7 @@ ol.ql li,ul.ql li{margin:6px 0}
 <header class="top" id="top"><div class="wrap">
 <a class="brand" href="#home"><i>IELTS</i>Skills Pack</a>
 <nav class="tabs" aria-label="Разделы"><a href="#home" data-tab="home">Главная</a><a href="#reading" data-tab="reading">Reading</a><a href="#listening" data-tab="listening">Listening</a><a href="#writing" data-tab="writing">Writing</a><a href="#speaking" data-tab="speaking">Speaking</a></nav>
-<div class="search"><input id="q" type="search" placeholder="Поиск: слово, тема, вопрос…" autocomplete="off" aria-label="Поиск по всем материалам"></div>
+<div class="search"><input id="q" type="search" placeholder="Поиск по словам, темам, вопросам" autocomplete="off" aria-label="Поиск по всем материалам"></div>
 <div class="ov" title="Общий прогресс"><span class="bar"><i id="ovBar"></i></span><span id="ovPct">0%</span></div>
 </div></header>
 
@@ -4217,21 +4217,38 @@ let sT=null;
 $('#q').addEventListener('input',()=>{clearTimeout(sT);sT=setTimeout(()=>{if(curView!=='search'){location.hash='#search';}else renderSearch();},180);});
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(sT);if(curView!=='search')location.hash='#search';else renderSearch();}});
 
-// simple charts from tables: <table data-chart="bar|line">
-document.querySelectorAll('table[data-chart]').forEach(t=>{
+// charts drawn on canvas from tables: <table data-chart="bar|line">
+const COLORS=['#2f6fd6','#d9822b','#1a9a5b','#c2413a','#7a4fc2','#17a2a2','#8a8a2b','#c2478f'];
+function drawChart(t,cv){
   const rows=[...t.rows].map(r=>[...r.cells].map(c=>c.textContent.trim()));
   const cats=rows[0].slice(1),ser=rows.slice(1).map(r=>({name:r[0],v:r.slice(1).map(x=>parseFloat(x.replace(/,/g,'')))}));
-  const W=640,H=300,L=46,B=34,T=14,R=10,dm=Math.max(...ser.flatMap(s=>s.v)),pw=Math.pow(10,Math.floor(Math.log10(dm/4))),fr=dm/4/pw,step=(fr<1.5?1:fr<3?2:fr<7?5:10)*pw,max=Math.ceil(dm/step)*step;
-  const col=['#0b5cad','#d9822b','#1a7f4b','#b3261e','#7a4fc2','#17a2a2','#8a8a2b','#c2478f'];
+  const W=640,H=300,L=46,B=34,T=14,R=10;
+  const dm=Math.max(...ser.flatMap(s=>s.v)),pw=Math.pow(10,Math.floor(Math.log10(dm/4))),fr=dm/4/pw,step=(fr<1.5?1:fr<3?2:fr<7?5:10)*pw,max=Math.ceil(dm/step)*step;
+  const dpr=Math.min(window.devicePixelRatio||1,3);cv.width=W*dpr;cv.height=H*dpr;
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='rgba(0,0,0,0)';
+  const cs=getComputedStyle(document.body);const ink=cs.getPropertyValue('--ink').trim()||'#162033',grid=cs.getPropertyValue('--line').trim()||'#d8dfe9';
   const y=v=>T+(H-T-B)*(1-v/max),gw=(W-L-R)/cats.length;
-  let s=`<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" style="font:11px system-ui;fill:currentColor">`;
-  for(let v=0;v<=max+1e-9;v+=step){s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" opacity=".15"/><text x="${L-5}" y="${y(v)+4}" text-anchor="end">${+v.toFixed(1)}</text>`;}
-  cats.forEach((c,i)=>{s+=`<text x="${L+gw*(i+.5)}" y="${H-B+15}" text-anchor="middle">${c}</text>`;});
-  if(t.dataset.chart==='line'){ser.forEach((se,k)=>{s+=`<polyline fill="none" stroke="${col[k%8]}" stroke-width="2.5" points="${se.v.map((v,i)=>(L+gw*(i+.5))+','+y(v)).join(' ')}"/>`;se.v.forEach((v,i)=>{s+=`<circle cx="${L+gw*(i+.5)}" cy="${y(v)}" r="3" fill="${col[k%8]}"/>`;});});}
-  else{const bw=gw*.8/ser.length;ser.forEach((se,k)=>se.v.forEach((v,i)=>{s+=`<rect x="${L+gw*i+gw*.1+bw*k}" y="${y(v)}" width="${bw-1}" height="${H-B-y(v)}" fill="${col[k%8]}"/>`;}));}
-  s+='</svg><div style="font:13px system-ui;display:flex;gap:12px;flex-wrap:wrap">'+ser.map((se,k)=>`<span><i style="display:inline-block;width:10px;height:10px;background:${col[k%8]};border-radius:2px"></i> ${se.name}</span>`).join('')+'</div>';
-  const d=document.createElement('div');d.innerHTML=s;t.closest('.tw').before(d);
+  g.font='11px Inter, system-ui, sans-serif';g.fillStyle=ink;g.strokeStyle=grid;g.lineWidth=1;
+  g.textAlign='right';g.textBaseline='middle';
+  for(let v=0;v<=max+1e-9;v+=step){g.beginPath();g.moveTo(L,y(v)+.5);g.lineTo(W-R,y(v)+.5);g.stroke();g.fillText(String(+v.toFixed(1)),L-5,y(v));}
+  g.textAlign='center';g.textBaseline='top';cats.forEach((c,i)=>g.fillText(c,L+gw*(i+.5),H-B+6));
+  if(t.dataset.chart==='line'){ser.forEach((se,k)=>{g.strokeStyle=COLORS[k%8];g.fillStyle=COLORS[k%8];g.lineWidth=2.5;g.beginPath();
+    se.v.forEach((v,i)=>{const x=L+gw*(i+.5);if(i)g.lineTo(x,y(v));else g.moveTo(x,y(v));});g.stroke();
+    se.v.forEach((v,i)=>{g.beginPath();g.arc(L+gw*(i+.5),y(v),3,0,7);g.fill();});});}
+  else{const bw=gw*.8/ser.length;ser.forEach((se,k)=>{g.fillStyle=COLORS[k%8];se.v.forEach((v,i)=>{g.fillRect(L+gw*i+gw*.1+bw*k,y(v),bw-1,H-B-y(v));});});}
+}
+const charts=[];
+$$('table[data-chart]').forEach(t=>{
+  const names=[...t.rows].slice(1).map(r=>r.cells[0].textContent.trim());
+  const d=document.createElement('div');const cv=document.createElement('canvas');cv.className='chart';cv.style.width='100%';cv.style.maxWidth='640px';cv.style.aspectRatio='640/300';
+  cv.setAttribute('role','img');cv.setAttribute('aria-label','График по данным таблицы ниже');
+  const leg=document.createElement('div');leg.style.cssText='font:13px system-ui;display:flex;gap:12px;flex-wrap:wrap';
+  leg.innerHTML=names.map((n,k)=>`<span><i style="display:inline-block;width:10px;height:10px;background:${COLORS[k%8]};border-radius:2px"></i> ${esc(n)}</span>`).join('');
+  d.append(cv,leg);t.closest('.tw').before(d);charts.push([t,cv]);drawChart(t,cv);
 });
+const redrawCharts=()=>charts.forEach(([t,cv])=>{cv.getContext('2d').setTransform(1,0,0,1,0,0);cv.width=cv.width;drawChart(t,cv);});
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',redrawCharts);}catch(e){}
+new MutationObserver(redrawCharts).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 refresh();
 route();
 })();
