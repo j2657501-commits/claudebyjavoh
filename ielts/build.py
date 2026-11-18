@@ -10,6 +10,7 @@ E = html.escape
 INSTR = {
     "TFNG": "Do the following statements agree with the information in the passage? Choose <b>TRUE</b>, <b>FALSE</b> or <b>NOT GIVEN</b>.",
     "YNNG": "Do the following statements agree with the views of the writer? Choose <b>YES</b>, <b>NO</b> or <b>NOT GIVEN</b>.",
+    "TF": "Decide whether each statement is <b>TRUE</b> or <b>FALSE</b>.",
     "MCQ": "Choose the correct letter, <b>A</b>, <b>B</b>, <b>C</b> or <b>D</b>.",
     "GAP": "Complete the sentences. Write <b>NO MORE THAN TWO WORDS AND/OR A NUMBER</b> from the passage for each answer.",
     "SUM": "Complete the summary. Write <b>NO MORE THAN TWO WORDS AND/OR A NUMBER</b> from the passage for each answer.",
@@ -48,8 +49,8 @@ def render_questions(groups, nparas, errors, where):
                 errors.append(f"{where}: question {n} has no answer: {it}")
                 continue
             ctrl, shown = "", ans
-            if kind in ("TFNG", "YNNG"):
-                opts = ["TRUE", "FALSE", "NOT GIVEN"] if kind == "TFNG" else ["YES", "NO", "NOT GIVEN"]
+            if kind in ("TFNG", "YNNG", "TF"):
+                opts = {"TFNG": ["TRUE", "FALSE", "NOT GIVEN"], "YNNG": ["YES", "NO", "NOT GIVEN"], "TF": ["TRUE", "FALSE"]}[kind]
                 if FULL.get(ans) not in opts:
                     errors.append(f"{where}: q{n} bad answer {ans}")
                 shown = FULL.get(ans, ans)
@@ -370,8 +371,59 @@ def load_models(errors):
     return models
 
 
+def build_wex(errors):
+    """Interactive Task 1 language exercises (src/wex.txt), keyed by id."""
+    out = {}
+    for block in parse_blocks(open(os.path.join(SRC, "wex.txt"), encoding="utf-8").read()):
+        title, sec, groups = parse_block(block)
+        name, _, key = [x.strip() for x in title.partition("|")]
+        qhtml, nq = render_questions(groups, 0, errors, f"Exercise {key}")
+        for kind, _, items in groups:
+            if kind in ("GAP", "SHORT"):
+                for it in items:
+                    if "____" not in it.split("|")[0]:
+                        errors.append(f"Exercise {key}: gap marker missing in: {it[:40]}")
+        intro = "".join(f"<p>{E(x)}</p>" for x in sec.get("INTRO", []))
+        out[key] = (f"<section class='unit wex' id='wx-{key}' data-k='wx-{key}' data-title=\"{E(name)}\">"
+                    f"<h4>{E(name)}</h4>{intro}<div class='qs'>{qhtml}</div></section>")
+    return out
+
+
+def build_task1(errors):
+    """Writing Task 1 section: layout + old and new practice cards + exercises, numbered in order."""
+    rd = lambda n: open(os.path.join(SRC, n), encoding="utf-8").read()
+    layout = rd("w1_layout.html")
+    pieces = {}
+    for f in ("w1_old.html", "w1_new.html"):
+        for m in re.finditer(r"<!--(OLD|NEW):(\w+)-->\n(.*?)(?=\n<!--(?:OLD|NEW):|\Z)", rd(f), flags=re.S):
+            pieces[(m.group(1), m.group(2))] = m.group(3).strip()
+    wex = build_wex(errors)
+
+    def sub(m):
+        token = m.group(1)
+        if token.startswith("WEX:"):
+            key = token[4:]
+            if key not in wex:
+                errors.append(f"Task 1: missing exercise {key}"); return ""
+            return wex.pop(key)
+        kind, key = ("NEW", token[4:]) if token.startswith("NEW:") else ("OLD", token[3:])
+        if (kind, key) not in pieces:
+            errors.append(f"Task 1: missing {kind} {key}"); return ""
+        return pieces.pop((kind, key))
+
+    page = re.sub(r"\{\{(OLD\d+|NEW:\w+|WEX:\w+)\}\}", sub, layout)
+    for k in list(pieces) + list(wex):
+        errors.append(f"Task 1: unused piece {k}")
+    n = [0]
+    def num(m):
+        n[0] += 1
+        return f"<h3>Practice {n[0]} — "
+    return re.sub(r"<h3>Practice(?: Task 1\.\d+)? — ", num, page)
+
+
 def build_writing(errors):
     page = open(os.path.join(SRC, "writing.html"), encoding="utf-8").read()
+    page = page.replace("{{TASK1}}", build_task1(errors))
     models = load_models(errors)
     used = set()
 
@@ -390,7 +442,7 @@ def build_writing(errors):
             errors.append(f"Writing {key}: {words} words")
         paras = "".join(f"<p>{E(p)}</p>" for p in body)
         return (f"<button class='done' data-k='w-{key}'>Отметить как сделано</button>"
-                f"<details class='model'><summary>Образец (Band 8), {words} слов — план, лексика, разбор</summary>"
+                f"<details class='model'><summary>Образец (Band {9 if key.startswith('t') else 8}), {words} слов — план, лексика, разбор</summary>"
                 f"<div class='note'><b>План:</b> {E(md['P'])}</div><div class='essay'>{paras}</div>"
                 f"<div class='note'><b>Лексика:</b> {vocab_html(md['V'])}</div>"
                 f"<div class='note'><b>Разбор:</b> {E(re.sub(r'^\d+ слов[а]?\. ', '', md['N']))}</div></details>")

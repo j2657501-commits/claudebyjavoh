@@ -176,3 +176,84 @@ E: Cheers,
 E: Bekzod
 V: be on = идти (о выставке); stunning = потрясающий; get better at = улучшить навык; catch up = пообщаться, наверстать; grab something to eat = перекусить
 N: 214 слов. Каждая причина личная (ты любишь фото, хотел улучшить портреты). Конкретный план встречи и запасной вариант. Разговорные выражения (it's ages since, grab, no good) уместны только в неформальном письме.
+
+# t9
+P: Line graph с прогнозом. Overview: рост в трёх странах из четырёх; самое резкое изменение — Япония, Нигерия почти без изменений. Детали 1: 1960 и путь до 2000 (Япония обгоняет). Детали 2: 2020 и прогноз на 2040.
+E: The line graph compares the proportion of people aged 65 or over in Japan, Germany, the USA and Nigeria between 1960 and 2020, and gives predictions up to 2040.
+E: It is clear that the elderly population grew in three of the four countries and is expected to continue rising. Japan saw the most dramatic change, while the figure for Nigeria remained almost unchanged throughout the period.
+E: In 1960, Germany had the highest proportion of older people, at 11%, compared with 9% in the USA and only 6% in Japan. Just 3% of Nigerians were aged 65 or over. Over the next forty years, the figure for Japan rose steeply to 17%, overtaking both Germany (16%) and the USA (12%).
+E: By 2020, almost three in ten Japanese people (29%) were 65 or older, while the figures for Germany and the USA stood at 22% and 17% respectively. By 2040, the proportion in Japan is predicted to reach 35%, and Germany is expected to follow closely at 30%. The figure for the USA is projected to rise to 22%, whereas in Nigeria it will remain at only around 4%.
+V: proportion = доля; overtake = обогнать; stood at = составлял; is predicted to = по прогнозу; whereas = тогда как
+N: Детали начинаются со сравнения всех линий в первом году — как советует метод. Прошлое в past simple, будущее через is predicted / is expected / is projected to, без повторов. Respectively экономит слова. Особая точка — момент, когда Япония обгоняет остальных.
+
+# t10
+P: Bar chart, два года, пять категорий. Overview: сдвиг от ТВ к соцсетям; соцсети с последнего места на первое; спорт и чтение упали. Детали 1: 2005. Детали 2: 2025 и изменения.
+E: The bar chart compares the average number of hours that teenagers spent each week on five leisure activities in 2005 and 2025.
+E: Overall, there was a clear shift from watching television towards screen-based activities on phones and computers. Social media went from being the least popular activity to the most popular, while the time spent on sport and reading fell.
+E: In 2005, television dominated teenagers' free time, at 14 hours per week, which was more than the other four activities combined. Sport came second, with 6 hours, followed by video games (5 hours) and reading (4 hours). Young people spent only 2 hours a week on social media.
+E: Twenty years later, the situation had almost reversed. Time spent on social media rose more than sevenfold to 15 hours, and the figure for video games almost doubled to 9 hours. By contrast, television viewing dropped sharply to just 5 hours a week. Sport and reading also declined, to 4 hours and 2 hours respectively, making reading the least popular of the five activities.
+V: dominate = доминировать, занимать основное место; combined = вместе взятые; reverse = поменяться на противоположное; sevenfold = в семь раз; decline = снижаться
+N: Детали разделены по годам — самый понятный вариант для двух лет. Приём with + число (with 6 hours) и сравнение «больше, чем остальные четыре вместе». Overview называет главное изменение без цифр.
+
+# t11
+P: Table без дат → present simple. Ключевые числа: самые большие (Торонто по размеру, Хельсинки по посещениям) и самые маленькие (Сидней, Мадрид). Overview: Торонто — самая большая система, Хельсинки — самые активные читатели, Сидней — самая маленькая. Детали 1: размер. Детали 2: использование и часы.
+E: The table compares the public library systems of five cities in terms of the number of libraries, the size of their collections, how often residents use them and the opening hours of the main library.
+E: It is clear that Toronto has by far the largest library system, while residents of Helsinki are the most frequent library users. Sydney has the smallest network on almost every measure.
+E: Toronto has 100 libraries holding 10.4 million books, a collection more than three times the size of any other shown. Helsinki and Madrid come next, with 37 and 33 libraries respectively, although Helsinki's collection is larger, at 3.2 million books compared with 2.1 million in Madrid. Sydney has only 9 libraries and 0.6 million books.
+E: In terms of usage, the average resident of Helsinki visits a library 10.5 times a year, followed by people in Oslo, at 7.2 visits. The figures for Madrid and Sydney are much lower, at 2.4 and 3.1 visits. Helsinki's main library is also open the longest, at 84 hours a week, whereas the main library in Madrid opens for just 56 hours.
+V: in terms of = с точки зрения; by far = намного, безусловно; on almost every measure = почти по всем показателям; collection = фонд (книг); frequent = частый
+N: Числа сгруппированы по смыслу (размер / использование), а не по городам — главное правило для таблиц. В каждом абзаце больше трёх чисел. Весь текст в present simple, потому что дат нет.
+
+# t12
+P: Две круговые диаграммы, два года. Overview: отопление — самая большая доля в оба года, но меньше; главный рост — бытовые приборы. Детали 1: 1990. Детали 2: 2020 и изменения.
+E: The pie charts compare how energy was used in homes in one country in 1990 and 2020.
+E: Overall, heating accounted for the largest share of household energy in both years, although its dominance declined. The most significant growth was in the proportion of energy used to run household appliances.
+E: In 1990, more than half of all domestic energy (58%) went on heating. Hot water was the second largest category, at 18%, while appliances, lighting and cooking together made up less than a quarter of the total, at 10%, 8% and 6% respectively.
+E: By 2020, the share used for heating had fallen to 42%. Meanwhile, the figure for appliances more than doubled to 22%, overtaking hot water (20%) to become the second largest category. The proportion of energy used for cooking also doubled, from 6% to 12%. Lighting was the only other category to decline, halving from 8% to just 4%, which made it the smallest use of household energy.
+V: accounted for = составлял; dominance = преобладание; went on = уходил на; made up = составляли; halve = сократиться вдвое
+N: Язык долей разнообразный: accounted for, went on, made up, the share, the proportion. -ing обороты (overtaking…, halving…) добавляют детали без новых предложений. Одна категория сравнивается на двух диаграммах, а не круг за кругом.
+
+# t13
+P: Три круговые диаграммы, три города. Overview: в каждом городе свой главный способ; Норт-порт — машины, Ривертон — транспорт, Истбэй — самый сбалансированный. Детали 1: машины и транспорт. Детали 2: велосипед, пешком, Истбэй.
+E: The pie charts show how commuters in three cities, Northport, Riverton and Eastbay, travel to work.
+E: It is clear that the most common way of getting to work differs from one city to another. Cars dominate in Northport, public transport is the main choice in Riverton, and Eastbay has the most balanced mix of transport types.
+E: More than half of Northport's commuters (55%) drive to work, which is the highest figure shown for any single method. A quarter use public transport, while 15% walk and only 5% cycle. In Riverton, by contrast, half of all workers travel by public transport, and just 20% go by car.
+E: Cycling is far more popular in Riverton and Eastbay than in Northport, accounting for 20% and 25% of journeys respectively. In Eastbay, the car is still the most popular option, at 35%, but public transport is close behind at 30%. The proportion of people who walk to work is the same in Riverton and Eastbay, at 10%.
+V: commuter = человек, ездящий на работу; differ from one … to another = отличаться от … к …; balanced mix = сбалансированное сочетание; by contrast = напротив; close behind = чуть позади
+N: Present simple, так как год не указан. Второй абзац деталей строится вокруг одной категории (cycling) во всех городах — так проще сравнивать. Дроби вместо процентов (more than half, a quarter, half) разнообразят язык.
+
+# t14
+P: Mixed: график + таблица. Overview: по одному выводу о каждой картинке (рост, затем резкое падение; пешие походы — главное занятие). Детали 1: график. Детали 2: таблица.
+E: The line graph shows the number of visitors to a national park between 2010 and 2020, and the table shows the main activities of visitors in 2020.
+E: Overall, visitor numbers grew steadily for most of the decade before dropping sharply in the final two years. Hiking was by far the most popular activity in 2020.
+E: In 2010, the park received 120,000 visitors. This figure rose gradually to 160,000 in 2014, before increasing more rapidly to reach a peak of 250,000 in 2018, more than double the number at the start of the period. However, visitor numbers then fell dramatically to 140,000 in 2020, only slightly above the level of 2012.
+E: Looking at the activities in 2020, almost half of all visitors (45%) went hiking. Camping was the second most popular activity, chosen by one in five visitors, while cycling and boating accounted for 15% and 12% respectively. The remaining 8% of visitors took part in other activities.
+V: steadily = стабильно, постепенно; reach a peak of = достичь пика в; more than double = более чем вдвое больше; the remaining = оставшиеся; take part in = участвовать
+N: Классическая схема для двух картинок: абзац на каждую. Пик и падение — «особые» точки графика, их обязательно упомянуть. Looking at… — удобный переход ко второй картинке.
+
+# t15
+P: Map, два места. Overview: главное различие — край города vs центр; ещё различаются транспорт и окружение. Детали 1: Site A. Детали 2: Site B.
+E: The map shows two possible sites for a new sports centre in the town of Westbridge.
+E: The main difference between the two locations is that Site A is on the edge of the town, whereas Site B is in the centre. The sites also differ in terms of transport links and the facilities around them.
+E: Site A lies about 3 kilometres north-west of the town centre, on open grassland next to a park. It is close to a new housing estate with around 8,000 residents and a secondary school, and it is located on the main road to the motorway, so there would be space for a large car park.
+E: Site B, by contrast, is right in the town centre, beside the railway station and bus terminal, which means it would be easy to reach by public transport. However, there is no room for parking on this site, and an old warehouse would need to be demolished before building could begin. Site B is surrounded by shops and offices, and there are two primary schools nearby.
+V: lie = располагаться; be located on = находиться на; easy to reach = легко добраться; be demolished = быть снесённым; be surrounded by = быть окружённым
+N: Overview называет главное различие и критерии сравнения. Предлоги места (north-west of, next to, beside, nearby) обязательны для карт. Would передаёт гипотетичность: центр ещё не построен.
+
+# t16
+P: Process (природный цикл). Overview: шесть этапов, часть в реке, часть в море; начинается и заканчивается в верховье реки. Детали 1: этапы 1–3 в реке. Детали 2: этапы 4–6 и возвращение.
+E: The diagram illustrates the life cycle of the salmon, from eggs in a river to adult fish in the ocean.
+E: There are six main stages in the cycle, which takes place partly in fresh water and partly in the sea. It begins and ends in the upper part of a river, where eggs are laid.
+E: At the first stage, salmon eggs are laid among small stones in shallow river water. After around three months, they hatch into tiny fish called alevin, which remain hidden in the gravel for about six weeks, feeding on a yolk sac attached to their bodies. Once this food source is used up, the young fish, now known as fry, swim freely in the river and feed on insects for up to a year.
+E: In the next stage, the fish, which have grown to between 12 and 15 centimetres and are called smolt, travel downstream to the sea. They spend the following one to four years in the ocean, where they become adults measuring 70 to 80 centimetres. Finally, the adult salmon swim back to the river in which they hatched, where they lay their eggs and the cycle begins again.
+V: hatch = вылупляться; yolk sac = желточный мешок; once = как только; downstream = вниз по течению; the cycle begins again = цикл начинается снова
+N: Overview — число этапов, начало и конец, как советует метод. Описано каждое из шести состояний. Для природного цикла уместен актив (swim, travel), пассив только там, где действие не выполняет сама рыба (eggs are laid). Последовательность: At the first stage, After, Once, In the next stage, Finally.
+
+# t17
+P: Diagram-сравнение двух систем (не процесс). Overview: главное различие — как вода доходит до растений; капельный расходует меньше, но дороже. Детали 1: затопление. Детали 2: капельный.
+E: The diagrams compare two methods of irrigating crops: flood irrigation and drip irrigation.
+E: The most noticeable difference between the two systems is the way in which water reaches the plants. Drip irrigation uses far less water than flooding, but it requires more expensive equipment.
+E: In flood irrigation, water flows from a river or canal along open channels and is allowed to cover the whole field. This method uses around 12,000 cubic metres of water per hectare in a growing season, and about half of this is lost through evaporation and runoff. However, the equipment needed is simple and cheap, and the system is well suited to flat land and crops such as rice.
+E: Drip irrigation, by contrast, delivers water from a tank through a network of plastic pipes, using a pump and a filter. The water drips slowly from small holes next to each plant, so less than 10% is wasted, and only 5,000 cubic metres are needed per hectare. Although the system is costly to install, it can be used on slopes and is ideal for fruit and vegetables.
+V: irrigate = орошать; the most noticeable difference = самое заметное различие; runoff = стекание (воды); be well suited to = хорошо подходить для; costly to install = дорого установить
+N: Схема-сравнение пишется как таблица: overview — главное различие, затем по абзацу на каждую систему. The most noticeable difference… — точная формула для таких заданий. Числа (12,000 vs 5,000, 50% vs 10%) делают сравнение конкретным.
